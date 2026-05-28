@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/monitor/route.ts — System monitor (DB-centric)
 //

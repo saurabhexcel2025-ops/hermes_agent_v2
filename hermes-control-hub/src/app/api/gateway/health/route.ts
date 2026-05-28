@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // Gateway Health Check — Proxied through CH to avoid CORS issues
 // ═══════════════════════════════════════════════════════════════

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // Gateway Models — Proxy to Hermes Gateway /v1/models
 // ═══════════════════════════════════════════════════════════════

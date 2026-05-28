@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ══════════════════════════════════════════════════════════════
 // /api/models/fallbacks/toggle — toggle enabled for fallback entry
 // ══════════════════════════════════════════════════════════════

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import Database from "better-sqlite3";
 import { existsSync, readFileSync, statSync } from "fs";

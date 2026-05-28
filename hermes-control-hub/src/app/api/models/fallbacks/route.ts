@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/fallbacks — list + create fallback chain entries
 // ═══════════════════════════════════════════════════════════════

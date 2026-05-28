@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/sync/drift — detect config drift between DB and config.yaml
 // No auth required (read-only diagnostic)

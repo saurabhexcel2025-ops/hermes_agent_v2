@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/sync/push — push single model DB → Hermes config.yaml
 // Pushes model to config.yaml primary section, and optionally

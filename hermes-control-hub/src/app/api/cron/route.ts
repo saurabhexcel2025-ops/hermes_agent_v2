@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/cron — Cron job CRUD via Control Hub SQLite
 // ═══════════════════════════════════════════════════════════════

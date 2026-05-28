@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/fallbacks/[id] — GET/PUT/DELETE single fallback entry
 // ═══════════════════════════════════════════════════════════════

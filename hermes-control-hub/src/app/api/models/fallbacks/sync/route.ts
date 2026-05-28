@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/fallbacks/sync — write fallback chain + config to Hermes
 // ═══════════════════════════════════════════════════════════════

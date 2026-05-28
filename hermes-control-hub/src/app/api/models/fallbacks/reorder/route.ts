@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/fallbacks/reorder — swap two adjacent entries
 // ═══════════════════════════════════════════════════════════════

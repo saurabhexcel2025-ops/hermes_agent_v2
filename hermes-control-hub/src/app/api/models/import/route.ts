@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/import — Import Hermes models from config.yaml + .env
 // ═══════════════════════════════════════════════════════════════

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/tools — Hermes toolset catalog (read-only reference)
 // ═══════════════════════════════════════════════════════════════

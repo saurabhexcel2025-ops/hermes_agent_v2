@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/mission-categories — User-managed mission categories
 // ═══════════════════════════════════════════════════════════════

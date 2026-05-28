@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/[id]/diff — show what would change on push or pull
 // POST: returns diff between DB model and Hermes config.yaml

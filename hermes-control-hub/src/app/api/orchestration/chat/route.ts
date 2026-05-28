@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // Chat API — Proxy to Hermes Gateway API Server
 // ═══════════════════════════════════════════════════════════════

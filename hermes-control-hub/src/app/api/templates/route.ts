@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // Custom Templates API — CRUD for user-created mission templates
 // ═══════════════════════════════════════════════════════════════

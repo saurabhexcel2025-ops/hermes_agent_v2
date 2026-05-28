@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/sync/pull — pull all matching models from Hermes → DB
 // Reads all model sections from config.yaml and updates matching

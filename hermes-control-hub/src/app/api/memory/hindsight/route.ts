@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/memory/hindsight/route.ts — Hindsight memory via direct HTTP
 //

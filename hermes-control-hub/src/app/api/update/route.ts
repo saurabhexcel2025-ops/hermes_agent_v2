@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { execFileSync, execSync, spawn } from "child_process";
 import { existsSync, writeFileSync, readFileSync, unlinkSync } from "fs";

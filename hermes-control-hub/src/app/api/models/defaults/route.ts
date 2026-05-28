@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/defaults — read & write the 11 task-slot defaults
 // Hermes-only; no framework scoping needed.

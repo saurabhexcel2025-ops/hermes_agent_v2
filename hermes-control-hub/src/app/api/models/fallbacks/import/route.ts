@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/models/fallbacks/import — GET preview / POST import fallbacks from Hermes config.yaml
 // ═══════════════════════════════════════════════════════════════

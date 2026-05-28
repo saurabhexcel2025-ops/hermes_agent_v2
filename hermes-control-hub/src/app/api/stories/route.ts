@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/stories — Story Weaver CRUD (SQLite storage)
 // All LLM generation logic preserved; storage moved to SQLite.

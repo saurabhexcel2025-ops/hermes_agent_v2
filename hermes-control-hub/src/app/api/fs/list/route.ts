@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // GET /api/fs/list — list one directory level under allowed roots
 // ═══════════════════════════════════════════════════════════════

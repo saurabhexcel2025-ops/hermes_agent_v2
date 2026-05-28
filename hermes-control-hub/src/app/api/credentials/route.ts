@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // ═══════════════════════════════════════════════════════════════
 // /api/credentials — list + create provider credentials
 // ═══════════════════════════════════════════════════════════════
