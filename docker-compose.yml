@@ -77,15 +77,15 @@ services:
       context: ./hermes-control-hub
       dockerfile: Dockerfile
     container_name: hermes_control_hub
-    ports:
-      - "${CONTROL_HUB_PORT:-42069}:42069"
+    expose:
+      - "42069"
     environment:
       PORT: "42069"
       HERMES_HOME: /data/hermes
       CH_DATA_DIR: /data/ch
       MEM0_BASE_URL: http://mem0-server:8888
       MEM0_USER_ID: ${MEM0_USER_ID:-hermes-user}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:42069}
+      NEXT_PUBLIC_APP_URL: https://mc.spacearmour.io
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       DATABASE_URL: postgresql://hermes:hermes_pass@postgres:5432/hermes_auth
@@ -97,6 +97,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  nginx:
+    image: nginx:alpine
+    container_name: hermes_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - control-hub
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     name: hermes_postgres_data
@@ -106,3 +121,5 @@ volumes:
     name: hermes_agent_home
   ch_data:
     name: hermes_ch_data
+  certbot_www:
+    name: hermes_certbot_www
