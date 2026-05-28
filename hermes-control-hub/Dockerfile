@@ -18,6 +18,10 @@ COPY . .
 RUN mkdir -p public
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS=--max-old-space-size=4096
+# Dummy secrets so auth.ts doesn't throw during static analysis at build time.
+# Real values must be set at runtime via docker-compose environment.
+ENV JWT_ACCESS_SECRET=build-time-placeholder-not-used-at-runtime
+ENV JWT_REFRESH_SECRET=build-time-placeholder-not-used-at-runtime
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runner

@@ -86,6 +86,8 @@ services:
       MEM0_BASE_URL: http://mem0-server:8888
       MEM0_USER_ID: ${MEM0_USER_ID:-hermes-user}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:42069}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
     volumes:
       - hermes_home:/data/hermes
       - ch_data:/data/ch
