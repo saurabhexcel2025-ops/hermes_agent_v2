@@ -88,6 +88,7 @@ services:
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:42069}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      DATABASE_URL: postgresql://hermes:hermes_pass@postgres:5432/hermes_auth
     volumes:
       - hermes_home:/data/hermes
       - ch_data:/data/ch
