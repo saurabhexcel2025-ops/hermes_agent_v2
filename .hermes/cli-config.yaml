@@ -1,0 +1,14 @@
+# Hermes Agent — Ollama Cloud configuration
+model:
+  default: "glm-5"
+  provider: "ollama-cloud"
+  # base_url is auto-set by the ollama-cloud provider (https://ollama.com/v1)
+
+# Compression settings
+compression:
+  enabled: true
+  threshold: 0.5
+
+# Disable streaming mid-turn updates
+streaming:
+  mid_turn_updates: false

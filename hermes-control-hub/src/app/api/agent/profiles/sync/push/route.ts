@@ -1,0 +1,94 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { requireAuth } from "@/lib/api-auth";
+import { logApiError } from "@/lib/api-logger";
+import { ensureDb } from "@/lib/db";
+import {
+  pushProfileToHermes,
+  pushAllProfiles,
+  pushRootToHermes,
+  pushAllSkillsToHermes,
+  pushSkillToHermes,
+} from "@/lib/hermes-profile-sync";
+
+export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (auth) return auth;
+
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    raw = {};
+  }
+
+  const body = (raw ?? {}) as Record<string, unknown>;
+  const slug = typeof body.slug === "string" ? body.slug : undefined;
+  const all = body.all === true;
+  const root = body.root === true;
+  const skills = body.skills === true;
+  const skillKey = typeof body.skillKey === "string" ? body.skillKey : undefined;
+  const missingOnly = body.missingOnly === true;
+  const onlyOutOfSync = body.onlyOutOfSync === true;
+
+  try {
+    ensureDb();
+
+    if (root) {
+      const result = pushRootToHermes();
+      return NextResponse.json({ data: { success: result.success, result } });
+    }
+
+    if (skills) {
+      const results = pushAllSkillsToHermes();
+      return NextResponse.json({
+        data: { success: results.every((r) => r.success), results },
+      });
+    }
+
+    if (skillKey) {
+      const result = pushSkillToHermes(skillKey);
+      return NextResponse.json({ data: { success: result.success, result } });
+    }
+
+    if (all || missingOnly || onlyOutOfSync) {
+      const profileResults = pushAllProfiles({
+        onlyMissing: missingOnly,
+        onlyOutOfSync,
+      });
+      const rootResult = pushRootToHermes();
+      return NextResponse.json({
+        data: {
+          success:
+            profileResults.every((r) => r.success) && rootResult.success,
+          root: rootResult,
+          results: profileResults,
+        },
+      });
+    }
+
+    if (!slug) {
+      return NextResponse.json(
+        { error: "slug, all, root, skills, or skillKey required" },
+        { status: 400 },
+      );
+    }
+
+    if (slug === "default") {
+      const result = pushRootToHermes();
+      return NextResponse.json({ data: { success: result.success, result } });
+    }
+
+    const result = pushProfileToHermes(slug);
+    return NextResponse.json({
+      data: {
+        success: result.success,
+        result,
+      },
+    });
+  }
+  catch (error) {
+    logApiError("POST /api/agent/profiles/sync/push", "push", error);
+    return NextResponse.json({ error: "Failed to push profile" }, { status: 500 });
+  }
+}

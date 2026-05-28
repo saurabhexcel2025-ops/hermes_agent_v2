@@ -1,0 +1,173 @@
+name: CI
+
+# Required for actions/checkout on pull_request merge refs (avoids intermittent auth failures).
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+# Parallel jobs: unit+build per OS, shell helpers test (bash only), and E2E on Ubuntu only.
+jobs:
+  shell-custom-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        id: checkout1
+        continue-on-error: true
+        with:
+          token: ${{ github.token }}
+      - name: Checkout repository (retry)
+        if: steps.checkout1.outcome != 'success'
+        uses: actions/checkout@v5
+        with:
+          token: ${{ github.token }}
+      - name: Hermes profile helpers + dotenv (isolated /tmp HERMES_HOME)
+        run: bash tests/scripts/run-shell-custom-tests.sh
+
+  build-test-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        id: checkout1
+        continue-on-error: true
+        with:
+          token: ${{ github.token }}
+      - name: Checkout repository (retry)
+        if: steps.checkout1.outcome != 'success'
+        uses: actions/checkout@v5
+        with:
+          token: ${{ github.token }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies (with cache reset retry)
+        run: |
+          npm ci || (npm cache clean --force && npm ci)
+      - name: Run database migrations
+        run: npm run prebuild
+      - name: ESLint
+        run: npm run lint
+      - uses: ./.github/actions/forbid-hermes-paths-in-api
+      - name: TypeScript (tsc --noEmit)
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+      - name: Next.js production build
+        run: npm run build
+      - name: Upload coverage HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov-report
+          if-no-files-found: ignore
+
+  build-test-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        id: checkout1
+        continue-on-error: true
+        with:
+          token: ${{ github.token }}
+      - name: Checkout repository (retry)
+        if: steps.checkout1.outcome != 'success'
+        uses: actions/checkout@v5
+        with:
+          token: ${{ github.token }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies (with cache reset retry)
+        run: |
+          npm ci || (npm cache clean --force && npm ci)
+      - name: Run database migrations
+        run: npm run prebuild
+      - name: ESLint
+        run: npm run lint
+      - uses: ./.github/actions/forbid-hermes-paths-in-api
+      - name: TypeScript (tsc --noEmit)
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+      - name: Next.js production build
+        run: npm run build
+
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        id: checkout1
+        continue-on-error: true
+        with:
+          token: ${{ github.token }}
+      - name: Checkout repository (retry)
+        if: steps.checkout1.outcome != 'success'
+        uses: actions/checkout@v5
+        with:
+          token: ${{ github.token }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies (with cache reset retry)
+        run: |
+          npm ci || (npm cache clean --force && npm ci)
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+      - name: Run database migrations
+        run: npm run prebuild
+      - name: Next.js production build
+        run: npm run build
+      - name: E2E smoke
+        run: npm run test:e2e
+        env:
+          CI: true
+          PORT: "3000"
+          PLAYWRIGHT_SMOKE: "1"
+
+  docker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        id: checkout1
+        continue-on-error: true
+        with:
+          token: ${{ github.token }}
+      - name: Checkout repository (retry)
+        if: steps.checkout1.outcome != 'success'
+        uses: actions/checkout@v5
+        with:
+          token: ${{ github.token }}
+      - name: Build production Docker image
+        run: docker build -f Dockerfile -t control-hub:ci .
+      - name: Dashboard deploy API — restart smoke (Docker)
+        run: bash tests/scripts/docker-deploy-api-smoke.sh
+        env:
+          CH_DOCKER_TEST_IMAGE: control-hub:ci
+          CH_DOCKER_TEST_PORT: "42090"

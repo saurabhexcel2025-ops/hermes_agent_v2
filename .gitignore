@@ -1,0 +1,60 @@
+# Environment — never commit real keys
+.env
+.env.local
+.env.*.local
+
+# ── .hermes runtime state (secrets and generated files) ──
+.hermes/.env
+# nested runtime home created by launchd/gateway — pure runtime state
+.hermes/.hermes/
+.hermes/hermes-agent/venv/
+.hermes/logs/
+.hermes/sessions/
+.hermes/audio_cache/
+.hermes/image_cache/
+.hermes/cache/
+.hermes/workspace/
+.hermes/sandboxes/
+.hermes/pairing/
+.hermes/*.db
+.hermes/*.db-shm
+.hermes/*.db-wal
+.hermes/*.pid
+.hermes/*.lock
+.hermes/auth.json
+.hermes/auth.lock
+.hermes/gateway_state.json
+.hermes/channel_directory.json
+.hermes/models_dev_cache.json
+.hermes/context_length_cache.yaml
+.hermes/SOUL.md
+.hermes/cron/.tick.lock
+
+# Node
+node_modules/
+.next/
+.cache/
+dist/
+out/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Claude Code internals
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker volumes (runtime data, not code)
+data/

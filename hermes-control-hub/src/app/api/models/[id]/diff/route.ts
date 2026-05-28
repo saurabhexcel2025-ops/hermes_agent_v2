@@ -1,0 +1,149 @@
+// ═══════════════════════════════════════════════════════════════
+// /api/models/[id]/diff — show what would change on push or pull
+// POST: returns diff between DB model and Hermes config.yaml
+// Body: { direction?: "push" | "pull" } (default: "push")
+// ═══════════════════════════════════════════════════════════════
+import { NextRequest, NextResponse } from "next/server";
+import { logApiError } from "@/lib/api-logger";
+import { getModelWithKey } from "@/lib/models-repository";
+import { getActiveHermesPaths } from "@/lib/hermes-agent-runtime";
+import { existsSync, readFileSync } from "fs";
+import * as yaml from "js-yaml";
+import { envVarForProvider, isHermesProvider } from "@/lib/hermes-providers";
+import { requireAuth } from "@/lib/api-auth";
+
+interface DiffEntry {
+  id: string;
+  label: string;
+  detail: string;
+}
+
+interface ConfigModelSection {
+  default?: string;
+  provider?: string;
+  base_url?: string;
+  context_length?: number;
+}
+
+function readHermesModelSection(): ConfigModelSection | null {
+  const paths = getActiveHermesPaths();
+  if (!existsSync(paths.config)) return null;
+  try {
+    const raw = readFileSync(paths.config, "utf-8");
+    const config = yaml.load(raw) as Record<string, unknown> | null;
+    return (config?.model as ConfigModelSection) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = requireAuth(request);
+  if (auth) return auth;
+
+  let raw: unknown;
+  try { raw = await request.json(); } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const body = raw as Record<string, unknown>;
+  const direction = (body?.direction as "push" | "pull") ?? "push";
+  const { id } = await params;
+
+  try {
+    const model = getModelWithKey(id);
+    if (!model) {
+      return NextResponse.json({ error: "Model not found" }, { status: 404 });
+    }
+
+    const diffs: DiffEntry[] = [];
+    const hermesModel = readHermesModelSection();
+
+    if (direction === "push") {
+      // Export: show the DB model's values as "will be written"
+      if (model.modelId) {
+        diffs.push({
+          id: "modelId",
+          label: "Model ID",
+          detail: model.modelId,
+        });
+      }
+      if (model.provider) {
+        diffs.push({
+          id: "provider",
+          label: "Provider",
+          detail: model.provider,
+        });
+      }
+      diffs.push({
+        id: "baseUrl",
+        label: "Base URL",
+        detail: model.baseUrl ?? "(none)",
+      });
+
+      // Credential
+      if (model.credentialsId && model.apiKey) {
+        const envVar = isHermesProvider(model.provider) ? envVarForProvider(model.provider) : null;
+        if (envVar) {
+          const hint = model.apiKey.slice(0, 4) + "..." + model.apiKey.slice(-4);
+          diffs.push({
+            id: "model-env",
+            label: "Credential",
+            detail: `Write ${envVar}=${hint} to ~/.hermes/.env`,
+          });
+        }
+      }
+
+      if (diffs.length === 0) {
+        diffs.push({
+          id: "no-change",
+          label: "No data",
+          detail: `${model.name} has no settings to export`,
+        });
+      }
+    } else {
+      // Import: show config.yaml values as "current config has"
+      if (!hermesModel || !hermesModel.default) {
+        diffs.push({
+          id: "no-hermes-data",
+          label: "No data in config.yaml",
+          detail: `No model section found in config.yaml`,
+        });
+      } else {
+        diffs.push({
+          id: "modelId",
+          label: "Model ID",
+          detail: hermesModel.default,
+        });
+        if (hermesModel.provider) {
+          diffs.push({
+            id: "provider",
+            label: "Provider",
+            detail: hermesModel.provider,
+          });
+        }
+        diffs.push({
+          id: "baseUrl",
+          label: "Base URL",
+          detail: hermesModel.base_url ?? "(none)",
+        });
+      }
+
+      if (diffs.length === 0) {
+        diffs.push({
+          id: "no-change",
+          label: "No changes",
+          detail: `${model.name} is already in sync with config.yaml`,
+        });
+      }
+    }
+
+    return NextResponse.json({ data: { diffs, modelName: model.name } });
+  } catch (error) {
+    logApiError("POST /api/models/[id]/diff", "computing diff", error);
+    return NextResponse.json({ error: "Failed to compute diff" }, { status: 500 });
+  }
+}

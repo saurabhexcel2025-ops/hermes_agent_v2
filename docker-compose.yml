@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: hermes_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: hermes_auth
+      POSTGRES_USER: hermes
+      POSTGRES_PASSWORD: hermes_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hermes -d hermes_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5
+    container_name: hermes_neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/mem0_password
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 1G
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  mem0-server:
+    build:
+      context: ./mem0-server
+      dockerfile: Dockerfile
+    container_name: hermes_mem0
+    ports:
+      - "8888:8888"
+    environment:
+      OLLAMA_CLOUD_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_CLOUD_BASE_URL: https://ollama.com/v1
+      OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-glm-5}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: hermes_auth
+      POSTGRES_USER: hermes
+      POSTGRES_PASSWORD: hermes_pass
+      NEO4J_URL: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: mem0_password
+      ENABLE_GRAPH: "true"
+      PORT: "8888"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8888/health | grep -q 'ok'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  control-hub:
+    build:
+      context: ./hermes-control-hub
+      dockerfile: Dockerfile
+    container_name: hermes_control_hub
+    ports:
+      - "${CONTROL_HUB_PORT:-42069}:42069"
+    environment:
+      PORT: "42069"
+      HERMES_HOME: /data/hermes
+      CH_DATA_DIR: /data/ch
+      MEM0_BASE_URL: http://mem0-server:8888
+      MEM0_USER_ID: ${MEM0_USER_ID:-hermes-user}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:42069}
+    volumes:
+      - hermes_home:/data/hermes
+      - ch_data:/data/ch
+    depends_on:
+      mem0-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: hermes_postgres_data
+  neo4j_data:
+    name: hermes_neo4j_data
+  hermes_home:
+    name: hermes_agent_home
+  ch_data:
+    name: hermes_ch_data

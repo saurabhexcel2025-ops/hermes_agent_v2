@@ -1,0 +1,13 @@
+name: Forbid HERMES_PATHS in API routes
+description: Fail CI if API routes reference HERMES_PATHS or HERMES_HOME instead of hermes-agent-runtime.
+
+runs:
+  using: composite
+  steps:
+    - name: Forbid HERMES_PATHS in API routes
+      shell: bash
+      run: |
+        if grep -rE "HERMES_PATHS|HERMES_HOME" src/app/api --include="*.ts" -q 2>/dev/null; then
+          echo "Use @/lib/hermes-agent-runtime instead of HERMES_PATHS/HERMES_HOME in API routes"
+          exit 1
+        fi

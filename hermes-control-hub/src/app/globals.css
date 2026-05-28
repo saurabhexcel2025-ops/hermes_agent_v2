@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-jost), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  /* SpaceArmour brand palette */
+  --color-sa-cyan: #4dd0f8;
+  --color-sa-blue: #0160e7;
+  --color-sa-blue-mid: #2379af;
+
+  /* Cherenkov ladder (bright → anchor) */
+  --color-cherenkov-100: #7fe0ff;
+  --color-cherenkov-200: #4dd0f8;
+  --color-cherenkov-300: #2bafd8;
+  --color-cherenkov-400: #1a8fbf;
+  --color-cherenkov-500: #0160e7;
+
+  /* Accent slots — semantic roles */
+  --color-neon-cyan: #4dd0f8;
+  --color-neon-purple: #8b5cff;
+  --color-neon-pink: #e879f9;
+  --color-neon-green: #a3ff12;
+  --color-neon-orange: #ff9f1c;
+  --color-neon-yellow: #facc15;
+
+  /* SpaceArmour dark surfaces */
+  --color-dark-950: #020305;
+  --color-dark-900: #080c14;
+  --color-dark-800: #0e1420;
+  --color-dark-700: #162030;
+  --color-dark-600: #1e2e42;
+
+  /* Semantic status */
+  --color-semantic-success: #a3ff12;
+  --color-semantic-warning: #fbbf24;
+  --color-semantic-danger: #f87171;
+  --color-semantic-info: #0160e7;
+}
+
+/* Shell + RGB mirrors for effects (keep aligned with @theme / docs/design-tokens.md) */
+:root {
+  --ch-shell-header-min-height: 5rem;
+  --ch-mobile-header-min-height: 3rem;
+  --ch-rgb-neon-cyan: 77, 208, 248;
+  --ch-rgb-neon-purple: 139, 92, 255;
+  --ch-rgb-neon-green: 163, 255, 18;
+  --ch-rgb-neon-pink: 232, 121, 249;
+  --ch-rgb-neon-orange: 255, 159, 28;
+  --ch-rgb-cherenkov-glow: 51, 221, 255;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-dark-900);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-dark-600);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--ch-rgb-neon-cyan) / 0.35);
+}
+
+/* Glow effects — legacy classes used across the app */
+.glow-cyan {
+  box-shadow:
+    0 0 20px rgb(var(--ch-rgb-neon-cyan) / 0.15),
+    0 0 40px rgb(var(--ch-rgb-neon-cyan) / 0.05);
+}
+.glow-purple {
+  box-shadow:
+    0 0 20px rgb(var(--ch-rgb-neon-purple) / 0.15),
+    0 0 40px rgb(var(--ch-rgb-neon-purple) / 0.05);
+}
+.glow-green {
+  box-shadow:
+    0 0 20px rgb(var(--ch-rgb-neon-green) / 0.15),
+    0 0 40px rgb(var(--ch-rgb-neon-green) / 0.05);
+}
+.glow-pink {
+  box-shadow:
+    0 0 20px rgb(var(--ch-rgb-neon-pink) / 0.15),
+    0 0 40px rgb(var(--ch-rgb-neon-pink) / 0.05);
+}
+.glow-orange {
+  box-shadow:
+    0 0 20px rgb(var(--ch-rgb-neon-orange) / 0.15),
+    0 0 40px rgb(var(--ch-rgb-neon-orange) / 0.05);
+}
+
+/* Variable-driven surface glow (see GlowSurface.tsx); --glow-surface-rgb set inline */
+.glow-surface {
+  --glow-surface-alpha: 0.15;
+  --glow-surface-alpha-outer: 0.05;
+  box-shadow:
+    0 0 20px rgb(var(--glow-surface-rgb) / var(--glow-surface-alpha)),
+    0 0 42px rgb(var(--glow-surface-rgb) / var(--glow-surface-alpha-outer));
+}
+
+@keyframes glow-surface-breathe {
+  0%, 100% {
+    box-shadow:
+      0 0 18px rgb(var(--glow-surface-rgb) / var(--glow-surface-alpha)),
+      0 0 36px rgb(var(--glow-surface-rgb) / var(--glow-surface-alpha-outer));
+  }
+  50% {
+    box-shadow:
+      0 0 28px rgb(var(--glow-surface-rgb) / calc(var(--glow-surface-alpha) * 1.35)),
+      0 0 52px rgb(var(--glow-surface-rgb) / calc(var(--glow-surface-alpha-outer) * 1.6));
+  }
+}
+
+.glow-surface--pulse {
+  animation: glow-surface-breathe 3s ease-in-out infinite;
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 10px rgb(var(--ch-rgb-neon-cyan) / 0.55);
+}
+.text-glow-purple {
+  text-shadow: 0 0 10px rgb(var(--ch-rgb-neon-purple) / 0.55);
+}
+
+/* Animated gradient border */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animated-border {
+  background: linear-gradient(
+    135deg,
+    var(--color-cherenkov-100),
+    var(--color-neon-purple),
+    var(--color-neon-pink),
+    var(--color-cherenkov-200)
+  );
+  background-size: 300% 300%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+/* Pulse animation */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Scanline effect */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgb(var(--ch-rgb-cherenkov-glow) / 0.015) 2px,
+    rgb(var(--ch-rgb-cherenkov-glow) / 0.015) 4px
+  );
+  pointer-events: none;
+}
+
+/* Slide in animation (for toasts) */
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(0.5rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-in {
+  animation: slide-in-from-bottom 0.2s ease-out;
+}
+
+/* Skeleton shimmer animation */
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-shimmer {
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Grid background */
+.grid-bg {
+  background-image:
+    linear-gradient(rgb(var(--ch-rgb-neon-cyan) / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--ch-rgb-neon-cyan) / 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Auto-refresh button pulse — fires on each log refresh tick */
+@keyframes auto-refresh-tick {
+  0% { box-shadow: 0 0 0px rgba(6, 214, 214, 0); }
+  30% { box-shadow: 0 0 12px rgba(6, 214, 214, 0.55); }
+  100% { box-shadow: 0 0 0px rgba(6, 214, 214, 0); }
+}
+.animate-auto-refresh-tick {
+  animation: auto-refresh-tick 0.8s ease-out forwards;
+}
+
+/* Slow spin for auto-refresh icon */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}

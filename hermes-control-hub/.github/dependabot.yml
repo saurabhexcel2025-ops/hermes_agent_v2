@@ -1,0 +1,28 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    ignore:
+      # ESLint 10 breaks eslint-config-next / eslint-plugin-react (getFilename API change).
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      # Stay aligned with CI Node 20 — do not auto-bump to @types/node 22+.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 6 is not yet validated against our Next.js 16 stack.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # cross-env 10 is a major jump; stay on 7.x until explicitly tested.
+      - dependency-name: "cross-env"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly

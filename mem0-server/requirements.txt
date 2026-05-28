@@ -1,0 +1,8 @@
+mem0ai>=0.1.70
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+psycopg2-binary>=2.9.9
+pgvector>=0.3.0
+neo4j>=5.20.0
+openai>=1.0.0
+sentence-transformers>=3.0.0

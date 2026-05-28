@@ -1,0 +1,224 @@
+import { NextResponse, NextRequest } from "next/server";
+import { existsSync, statSync } from "fs";
+
+import { logApiError } from "@/lib/api-logger";
+import { resolveSafeProfileName } from "@/lib/path-security";
+import { requireAuth } from "@/lib/api-auth";
+import { appendAuditLine } from "@/lib/audit-log";
+import { ensureDb } from "@/lib/db";
+import {
+  listProfiles,
+  upsertProfile,
+  getProfile,
+  defaultConfigYaml,
+} from "@/lib/profiles-repository";
+import { getAgentRoot } from "@/lib/agent-root-repository";
+import {
+  pushProfileToHermes,
+  detectProfileDrift,
+  detectRootDrift,
+  countProfileSkills,
+  countProfileToolsets,
+} from "@/lib/hermes-profile-sync";
+import { slugifyDisplayName } from "@/lib/profile-slug";
+import { buildProfileHermesPathBundle } from "@/lib/hermes-profile-paths";
+import type { ApiResponse, AgentProfile, ProfileFile } from "@/types/hermes";
+
+function getProfileFilesForSlug(slug: string): ProfileFile[] {
+  const bundle = buildProfileHermesPathBundle(slug);
+  const fileDefs =
+    slug === "default"
+      ? [
+          { key: "soul", name: "SOUL.md", path: bundle.soul },
+          { key: "agent", name: "AGENTS.md", path: bundle.agents },
+          { key: "hermes", name: "HERMES.md", path: bundle.hermes },
+          { key: "user", name: "USER.md", path: bundle.userMemory },
+          { key: "memory", name: "MEMORY.md", path: bundle.agentMemory },
+          { key: "config", name: "config.yaml", path: bundle.config },
+        ]
+      : [
+          { key: "soul", name: "SOUL.md", path: bundle.soul },
+          { key: "agent", name: "AGENTS.md", path: bundle.agents },
+          { key: "user", name: "USER.md", path: bundle.userMemory },
+          { key: "memory", name: "MEMORY.md", path: bundle.agentMemory },
+          { key: "config", name: "config.yaml", path: bundle.config },
+        ];
+  return fileDefs.map((def) => {
+    const exists = existsSync(def.path);
+    let size = 0;
+    let lastModified: string | null = null;
+    if (exists) {
+      try {
+        const stats = statSync(def.path);
+        size = stats.size;
+        lastModified = stats.mtime.toISOString();
+      } catch {
+        // ignore
+      }
+    }
+    return {
+      key: def.key,
+      name: def.name,
+      path: def.path,
+      exists,
+      size,
+      lastModified,
+    };
+  });
+}
+
+function rowToApiProfile(slug: string): AgentProfile | null {
+  if (slug === "default") {
+    const root = getAgentRoot();
+    const drift = detectRootDrift();
+    let syncStatus: AgentProfile["syncStatus"] = "synced";
+    if (root.syncError) syncStatus = "error";
+    else if (drift.drifted) syncStatus = "drift";
+
+    return {
+      id: "default",
+      name: root.displayName === "Bob" ? "Bob (local default)" : root.displayName,
+      description:
+        root.description ||
+        "Local Hermes root agent at ~/.hermes — import from disk wins over seed on merge",
+      personality: root.personality,
+      isDefault: true,
+      isBundled: false,
+      skillsCount: countProfileSkills("default"),
+      toolsCount: countProfileToolsets("default"),
+      files: getProfileFilesForSlug("default"),
+      syncStatus,
+      syncedAt: root.syncedAt,
+      syncError: root.syncError,
+    };
+  }
+
+  const row = getProfile(slug);
+  if (!row) return null;
+
+  const drift = detectProfileDrift(slug);
+  let syncStatus: AgentProfile["syncStatus"] = "synced";
+  if (row.syncError) syncStatus = "error";
+  else if (drift.drifted) syncStatus = "drift";
+
+  return {
+    id: row.slug,
+    name: row.displayName,
+    description: row.description,
+    personality: row.personality,
+    isDefault: false,
+    isBundled: Boolean(row.seedKey),
+    skillsCount: countProfileSkills(slug),
+    toolsCount: countProfileToolsets(slug),
+    files: getProfileFilesForSlug(slug),
+    syncStatus,
+    syncedAt: row.syncedAt,
+    syncError: row.syncError,
+  };
+}
+
+export async function GET() {
+  try {
+    ensureDb();
+    const profiles: AgentProfile[] = [];
+    const defaultProfile = rowToApiProfile("default");
+    if (defaultProfile) profiles.push(defaultProfile);
+
+    for (const row of listProfiles()) {
+      const api = rowToApiProfile(row.slug);
+      if (api) profiles.push(api);
+    }
+
+    return NextResponse.json<ApiResponse<{ profiles: AgentProfile[] }>>({
+      data: { profiles },
+    });
+  } catch (error) {
+    logApiError("GET /api/agent/profiles", "listing profiles", error);
+    return NextResponse.json({ error: "Failed to list profiles" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (auth) return auth;
+
+  try {
+    ensureDb();
+    const body = await request.json();
+    const { name, description, cloneFrom } = body as {
+      name?: string;
+      description?: string;
+      cloneFrom?: string;
+    };
+
+    if (!name || typeof name !== "string" || name.trim().length < 2) {
+      return NextResponse.json(
+        { error: "Name is required (min 2 characters)" },
+        { status: 400 },
+      );
+    }
+
+    const slug = slugifyDisplayName(name);
+
+    const prof = resolveSafeProfileName(slug);
+    if (!prof.ok) {
+      return NextResponse.json({ error: prof.error }, { status: 400 });
+    }
+
+    if (getProfile(slug)) {
+      return NextResponse.json(
+        { error: `Profile "${slug}" already exists` },
+        { status: 409 },
+      );
+    }
+
+    let soulMd =
+      "# " +
+      name.trim() +
+      "\n\nYou are a subject matter expert. Deliver complete, high-quality work for your assigned task.\n";
+    let agentsMd = "# " + name.trim() + " — Development Guide\n\n";
+    let configYaml = defaultConfigYaml("technical");
+    let personality = "technical";
+
+    if (cloneFrom && cloneFrom !== "default") {
+      const source = getProfile(cloneFrom);
+      if (source) {
+        soulMd = source.soulMd;
+        agentsMd = source.agentsMd;
+        configYaml = source.configYaml;
+        personality = source.personality;
+      }
+    }
+
+    upsertProfile({
+      slug,
+      displayName: name.trim(),
+      description: typeof description === "string" ? description : "",
+      personality,
+      configYaml,
+      soulMd,
+      agentsMd,
+    });
+
+    const push = pushProfileToHermes(slug);
+    if (!push.success) {
+      return NextResponse.json(
+        { error: push.error ?? "Failed to sync profile to Hermes" },
+        { status: 500 },
+      );
+    }
+
+    appendAuditLine({
+      action: "agent.profile.create",
+      resource: slug,
+      ok: true,
+    });
+
+    return NextResponse.json<ApiResponse<{ slug: string }>>({
+      data: { slug },
+    });
+  } catch (error) {
+    logApiError("POST /api/agent/profiles", "creating profile", error);
+    return NextResponse.json({ error: "Failed to create profile" }, { status: 500 });
+  }
+}

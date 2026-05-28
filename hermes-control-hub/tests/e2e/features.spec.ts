@@ -1,0 +1,145 @@
+import { test, expect } from "@playwright/test";
+
+test.describe("Missions page", () => {
+  test("loads missions list", async ({ page }) => {
+    await page.goto("/orchestration/missions");
+    await expect(
+      page.getByRole("heading", { name: "Missions", exact: true })
+    ).toBeVisible();
+  });
+
+  test("shows quick deploy template region", async ({ page }) => {
+    await page.goto("/orchestration/missions");
+    await expect(
+      page.getByRole("heading", { name: "Missions", exact: true })
+    ).toBeVisible();
+    const region = page.getByTestId("missions-quick-templates");
+    await expect(region).toBeVisible({ timeout: 30_000 });
+    await expect(region.getByText(/Quick load template/i)).toBeVisible();
+  });
+
+  test("can open create mission form", async ({ page }) => {
+    await page.goto("/orchestration/missions");
+    const createBtn = page.getByRole("button", { name: /Create|New Mission|Draft/i });
+    if (await createBtn.isVisible()) {
+      await createBtn.click();
+      await expect(page.getByText(/Mission Name|Name/i).first()).toBeVisible();
+    }
+  });
+});
+
+test.describe("Cron page", () => {
+  test("loads cron jobs list", async ({ page }) => {
+    await page.goto("/orchestration/cron");
+    await expect(
+      page.getByRole("heading", { name: /Cron Jobs/i })
+    ).toBeVisible();
+  });
+
+  test("shows create job button", async ({ page }) => {
+    await page.goto("/orchestration/cron");
+    await expect(
+      page.getByRole("button", { name: /Create|New|Add/i }).first()
+    ).toBeVisible();
+  });
+});
+
+test.describe("Sessions page", () => {
+  test("loads sessions list", async ({ page }) => {
+    await page.goto("/sessions");
+    await expect(
+      page.getByRole("heading", { name: /Session History/i })
+    ).toBeVisible();
+  });
+
+  test("optional session detail from list link", async ({ page, request }) => {
+    const res = await request.get("/api/sessions?limit=5");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    const sessions: { id: string }[] = body.data?.sessions ?? body.sessions ?? [];
+    if (sessions.length === 0) {
+      test.skip(true, "No sessions available for detail view");
+      return;
+    }
+    const id = sessions[0].id;
+    await page.goto(`/sessions/${encodeURIComponent(id)}`);
+    await expect(page.getByTestId("ch-app-shell")).toBeVisible();
+    await expect(page.locator("main")).toBeVisible({ timeout: 30_000 });
+  });
+});
+
+test.describe("Chat page", () => {
+  test("loads chat shell", async ({ page }) => {
+    await page.goto("/orchestration/chat");
+    await expect(
+      page.getByRole("heading", { name: "Chat", exact: true })
+    ).toBeVisible();
+    await expect(page.getByTestId("ch-app-shell")).toBeVisible();
+  });
+});
+
+test.describe("Config page", () => {
+  test("loads config sections", async ({ page }) => {
+    await page.goto("/config");
+    await expect(
+      page.getByRole("heading", { name: /Config|Settings/i }).first()
+    ).toBeVisible();
+  });
+
+  test("shows config section cards", async ({ page }) => {
+    await page.goto("/config");
+    // Should show at least Agent and Model sections
+    await expect(page.getByText("Agent").first()).toBeVisible();
+  });
+});
+
+test.describe("Skills page", () => {
+  test("loads skills browser", async ({ page }) => {
+    await page.goto("/operations/skills");
+    await expect(
+      page.getByRole("heading", { name: /Skills Manager/i })
+    ).toBeVisible();
+  });
+
+  test("optional skill detail from API path", async ({ page, request }) => {
+    const res = await request.get("/api/skills?profile=default");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    const skills: { name: string; category: string }[] =
+      body.data?.skills ?? body.skills ?? [];
+    if (skills.length === 0) {
+      test.skip(true, "No skills on disk for detail view");
+      return;
+    }
+    const skill = skills[0];
+    const segments =
+      skill.category && skill.category !== "uncategorized"
+        ? [skill.category, skill.name]
+        : [skill.name];
+    const path = segments.map((s) => encodeURIComponent(s)).join("/");
+    const detailRes = await page.goto(`/operations/skills/${path}`, {
+      waitUntil: "domcontentloaded",
+    });
+    expect(detailRes?.status() ?? 0).toBeLessThan(500);
+    await expect(page.getByTestId("ch-app-shell")).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 30_000 });
+  });
+});
+
+test.describe("Memory page", () => {
+  test("loads memory page", async ({ page }) => {
+    await page.goto("/memory");
+    await expect(
+      page.getByRole("heading", { name: /Memory/i })
+    ).toBeVisible();
+  });
+});
+
+test.describe("Logs page", () => {
+  test("loads logs viewer", async ({ page }) => {
+    await page.goto("/logs");
+    await expect(
+      page.getByRole("heading", { name: /Logs/i })
+    ).toBeVisible();
+  });
+});

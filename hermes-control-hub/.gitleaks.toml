@@ -1,0 +1,7 @@
+title = "Control Hub gitleaks config"
+
+[allowlist]
+description = "Synthetic API key strings in unit/integration tests"
+paths = [
+  '''tests/''',
+]

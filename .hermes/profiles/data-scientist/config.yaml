@@ -1,0 +1,19 @@
+skills:
+  disabled:
+    - creative/popular-web-designs
+platform_toolsets:
+  cli:
+    - hermes-cli
+    - hermes-discord
+    - hermes-homeassistant
+    - hermes-signal
+    - hermes-slack
+    - hermes-telegram
+    - hermes-whatsapp
+
+terminal:
+  cwd: .
+
+agent:
+  max_turns: 70
+  personality: technical
