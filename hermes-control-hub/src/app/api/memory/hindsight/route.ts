@@ -26,7 +26,8 @@ function normalizeTags(tags: unknown): string[] {
 
 // ── Constants ────────────────────────────────────────────────
 
-const HINDSIGHT_BASE_URL = "http://localhost:9177";
+const HINDSIGHT_BASE_URL =
+  process.env.HINDSIGHT_BASE_URL ?? "http://host.docker.internal:9177";
 const DEFAULT_BANK = "hermes";
 const DEFAULT_TIMEOUT_MS = 15_000;
 
