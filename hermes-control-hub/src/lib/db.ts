@@ -106,7 +106,8 @@ function runMigrations(database: Database.Database): void {
     );
   `);
 
-  const migrationsDir = join(__dirname, "db", "migrations");
+  // Use process.cwd() so migrations resolve correctly in Docker (Next.js __dirname is unpredictable)
+  const migrationsDir = join(process.cwd(), "db", "migrations");
   const baselinePath = join(migrationsDir, "001_baseline.sql");
   const baselineSql = existsSync(baselinePath)
     ? readFileSync(baselinePath, "utf-8")
