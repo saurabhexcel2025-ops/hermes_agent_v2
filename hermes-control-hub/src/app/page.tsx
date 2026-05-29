@@ -460,8 +460,8 @@ export default function Dashboard() {
       <div className={`${shellHeaderBarClasses} sticky top-0 z-30 justify-between gap-4 w-full`}>
         <div>
           <h1 className="text-xl font-bold tracking-tight">
-            <span className="text-neon-cyan text-glow-cyan">CONTROL</span>{" "}
-            <span className="text-white/70">HUB</span>
+            <span className="text-neon-cyan text-glow-cyan">MISSION</span>{" "}
+            <span className="text-white/70">CONTROL</span>
           </h1>
           <p className="text-xs text-white/40 font-mono">{modelSubtitle}</p>
         </div>
