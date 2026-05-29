@@ -37,6 +37,7 @@ RUN apt-get update \
     ca-certificates \
     curl \
     git \
+    gosu \
     iproute2 \
     psmisc \
     socat \
@@ -49,13 +50,16 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/scripts ./scripts
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN chown -R nextjs:nodejs /app/scripts
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && chown -R nextjs:nodejs /app/scripts
 
-USER nextjs
+# Run as root so entrypoint can chown mounted volumes, then drops to nextjs via gosu
 EXPOSE 42069
 ENV HOSTNAME=0.0.0.0
 ENV PORT=42069
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||42069),(r)=>process.exit(r.statusCode&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["npm", "run", "start:network"]
