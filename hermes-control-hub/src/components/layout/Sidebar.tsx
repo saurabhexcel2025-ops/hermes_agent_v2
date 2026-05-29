@@ -18,11 +18,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronDown,
-  X,
   Settings,
-  RefreshCw,
-  AlertTriangle,
-  Check,
   Hammer,
   Power,
 } from "lucide-react";
@@ -36,146 +32,17 @@ import {
 
 import type { SidebarLink, ConfigGroup } from "./sidebar-config";
 
-import { sanitizeGitBranch } from "@/lib/git-branch";
-
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
 
   return pathname.startsWith(href);
 }
 
-// ── Branch Dropdown ─────────────────────────────────────────────
-// Inline dropdown anchored above the footer buttons, not a modal overlay.
-
-function BranchDropdown({
-  branches,
-  defaultBranch,
-  onConfirm,
-  onCancel,
-  loading,
-}: {
-  branches: string[];
-  defaultBranch: string;
-  onConfirm: (branch: string) => void;
-  onCancel: () => void;
-  loading?: boolean;
-}) {
-  const [selected, setSelected] = useState(defaultBranch);
-  const [customBranch, setCustomBranch] = useState("");
-
-  // Close on outside click
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onCancel();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onCancel]);
-
-  return (
-    <div
-      ref={ref}
-      className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-white/10 bg-dark-950 shadow-xl overflow-hidden z-50"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-        <span className="text-xs font-mono text-white/50">Branch</span>
-        <button
-          onClick={onCancel}
-          className="p-0.5 rounded text-white/30 hover:text-white/60 transition-colors"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Body */}
-      <div className="p-2">
-        <select
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          className="w-full px-2 py-1.5 rounded-md bg-dark-900 border border-white/10 text-white text-xs focus:outline-none focus:border-neon-cyan/50"
-        >
-          {branches.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </select>
-        <label className="block mt-2 text-[10px] font-mono text-white/40 uppercase tracking-wide">
-          Other branch
-        </label>
-        <input
-          type="text"
-          value={customBranch}
-          onChange={(e) => setCustomBranch(e.target.value)}
-          placeholder="e.g. feature/my-branch"
-          className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-dark-900 border border-white/10 text-white text-xs placeholder:text-white/25 focus:outline-none focus:border-neon-cyan/50"
-        />
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-end gap-2 px-2 pb-2">
-        <button
-          onClick={onCancel}
-          disabled={loading}
-          className="px-3 py-1 rounded text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() =>
-            onConfirm(
-              customBranch.trim()
-                ? sanitizeGitBranch(customBranch)
-                : selected,
-            )
-          }
-          disabled={loading || (!customBranch.trim() && !selected)}
-          className="px-3 py-1 rounded text-xs font-medium bg-neon-cyan text-dark-900 hover:brightness-110 transition disabled:opacity-50"
-        >
-          {loading ? "..." : "Confirm"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Version Check & Update ─────────────────────────────────────
-
-interface VersionInfo {
-  localHash: string;
-  remoteHash: string;
-  updateAvailable: boolean;
-  commitMessage: string;
-  behind: number;
-  branch: string;
-  /** Remote ref used for compare (when present). */
-  comparedBranch?: string;
-  checkoutBranch?: string;
-  lastChecked: string;
-}
-
 function VersionFooter({ collapsed }: { collapsed: boolean }) {
-  const [version, setVersion] = useState<VersionInfo | null>(null);
-  const [checkState, setCheckState] = useState<
-    "idle" | "checking" | "up-to-date" | "update-available"
-  >("idle");
-  const [updating, setUpdating] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // Synchronous busy guard — ref, not state, so it updates immediately on click
   const busyRef = useRef(false);
-
-  // Dropdown state (Check for updates only)
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [branches, setBranches] = useState<string[]>(["main", "dev"]);
-  const [selectedBranch, setSelectedBranch] = useState("main");
-  /** Branch last used for GET /api/update?branch=… — POST update uses the same branch. */
-  const [deployBranch, setDeployBranch] = useState<string | null>(null);
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
@@ -190,90 +57,6 @@ function VersionFooter({ collapsed }: { collapsed: boolean }) {
       }
     };
   }, []);
-
-  const openCheckDropdown = async () => {
-    setDropdownOpen(true);
-    const pickBranch = (list: string[], apiDefault: unknown): string => {
-      const def =
-        typeof apiDefault === "string" ? sanitizeGitBranch(apiDefault) : "";
-      if (def && list.includes(def)) return def;
-      return list[0] ?? "dev";
-    };
-    try {
-      const res = await fetch("/api/update?branches=1");
-      const d = await res.json();
-      const list: string[] =
-        d.data?.branches?.length > 0 ? d.data.branches : ["main", "dev"];
-      setBranches(list);
-      setSelectedBranch(pickBranch(list, d.data?.default));
-    } catch {
-      const fallback = ["main", "dev"];
-      setBranches(fallback);
-      setSelectedBranch(pickBranch(fallback, undefined));
-    }
-  };
-
-  const handleDropdownConfirm = async (branch: string) => {
-    setDropdownOpen(false);
-    await doCheck(branch);
-  };
-
-  // Check version against a specific branch
-  const doCheck = async (branch: string) => {
-    setCheckState("checking");
-    setMessage(null);
-    try {
-      const res = await fetch(`/api/update?branch=${encodeURIComponent(branch)}`);
-      const d = await res.json();
-      if (d.data) {
-        setVersion(d.data);
-        setDeployBranch(branch);
-        setCheckState(d.data.updateAvailable ? "update-available" : "up-to-date");
-      } else {
-        setCheckState("idle");
-        setMessage("Check failed");
-      }
-    } catch {
-      setCheckState("idle");
-      setMessage("Check failed");
-    }
-  };
-
-  const handleUpdate = async () => {
-    if (updating || !version?.updateAvailable) return;
-    setUpdating(true);
-    setMessage("Update started — deploying in background...");
-    try {
-      const res = await fetch("/api/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update",
-          ...(deployBranch ? { branch: deployBranch } : {}),
-        }),
-      });
-      if (!res.ok) {
-        let msg = "Update failed";
-        try {
-          const body = await res.json();
-          if (body?.error) msg = body.error;
-        } catch { /* ignore */ }
-        throw new Error(msg);
-      }
-      const d = await res.json();
-      if (d.error) {
-        setMessage(d.error);
-        setUpdating(false);
-        return;
-      }
-      setMessage("Update running…");
-      pollDeployStatus("update");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Update failed";
-      setMessage(msg);
-      setUpdating(false);
-    }
-  };
 
   const handleRestart = async () => {
     if (busyRef.current) return;
@@ -333,13 +116,12 @@ function VersionFooter({ collapsed }: { collapsed: boolean }) {
   };
 
   const clearDeployBusy = () => {
-    setUpdating(false);
     setRestarting(false);
     setRebuilding(false);
     busyRef.current = false;
   };
 
-  const pollDeployStatus = (expectedAction: "rebuild" | "restart" | "update") => {
+  const pollDeployStatus = (expectedAction: "rebuild" | "restart") => {
     if (pollIntervalRef.current !== null) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -385,9 +167,7 @@ function VersionFooter({ collapsed }: { collapsed: boolean }) {
           const label =
             expectedAction === "rebuild"
               ? "Rebuild complete"
-              : expectedAction === "restart"
-                ? "Restart complete"
-                : "Update complete";
+              : "Restart complete";
           setMessage(label);
           setTimeout(() => {
             if (isMountedRef.current) setMessage(null);
@@ -415,47 +195,13 @@ function VersionFooter({ collapsed }: { collapsed: boolean }) {
     pollIntervalRef.current = interval;
   };
 
-  const isBusy = updating || restarting || rebuilding;
+  const isBusy = restarting || rebuilding;
 
   // ── Collapsed view ───────────────────────────────────────────
   if (collapsed) {
     return (
       <>
         <div className="flex flex-col items-center gap-2 relative">
-          {/* Branch dropdown for collapsed view */}
-          {dropdownOpen && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-44 z-50">
-              <BranchDropdown
-                branches={branches}
-                defaultBranch={selectedBranch}
-                onConfirm={handleDropdownConfirm}
-                onCancel={() => setDropdownOpen(false)}
-                loading={checkState === "checking" || rebuilding}
-              />
-            </div>
-          )}
-
-          {/* Check transforms to orange alert when update available */}
-          {checkState === "update-available" ? (
-            <button
-              onClick={handleUpdate}
-              disabled={isBusy}
-              className="p-1.5 rounded-lg bg-orange-500/10 text-neon-orange hover:bg-orange-500/20 transition-colors"
-              title={`Update available — ${version?.behind} behind`}
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <button
-              onClick={() => openCheckDropdown()}
-              disabled={checkState === "checking" || isBusy}
-              className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
-              title={checkState === "checking" ? "Checking..." : "Check for Update"}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${checkState === "checking" ? "animate-spin" : ""}`} />
-            </button>
-          )}
-
           {/* Rebuild */}
           <button
             onClick={() => doRebuild()}
@@ -480,78 +226,14 @@ function VersionFooter({ collapsed }: { collapsed: boolean }) {
     );
   }
 
-  // ── Expanded view ────────────────────────────────────────────
-  // Row 1: Check button (full-width)
-  // Row 2: Rebuild | Restart side-by-side
-  // Dropdown appears above row 1 when open
-
-  const renderCheckButton = () => {
-    if (checkState === "idle") {
-      return (
-        <button
-          onClick={() => openCheckDropdown()}
-          disabled={isBusy}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs font-mono text-blue-400 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />
-          Check for Updates
-        </button>
-      );
-    }
-    if (checkState === "checking") {
-      return (
-        <button disabled className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs font-mono text-blue-400 opacity-70">
-          <RefreshCw className="w-3.5 h-3.5 flex-shrink-0 animate-spin" />
-          Checking...
-        </button>
-      );
-    }
-    if (checkState === "up-to-date") {
-      return (
-        <button disabled className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-xs font-mono text-green-400 cursor-default">
-          <Check className="w-3.5 h-3.5 flex-shrink-0" />
-          Up to Date
-        </button>
-      );
-    }
-    return (
-      <button
-        onClick={handleUpdate}
-        disabled={isBusy}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-xs font-mono text-neon-orange hover:bg-orange-500/20 transition-colors disabled:opacity-50"
-      >
-        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-        Update Available!
-      </button>
-    );
-  };
-
   return (
     <div className="relative">
-      {/* Branch dropdown — anchored above the button row */}
-      {dropdownOpen && (
-        <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50">
-          <BranchDropdown
-            branches={branches}
-            defaultBranch={selectedBranch}
-            onConfirm={handleDropdownConfirm}
-            onCancel={() => setDropdownOpen(false)}
-            loading={checkState === "checking" || rebuilding}
-          />
-        </div>
-      )}
-
-      {/* Button rows — all content lives here so the status message never pushes layout */}
       <div className="space-y-1.5">
-        {/* Status message — visible inline when operation is in progress */}
         {message && (
           <div className="min-h-[1.25rem] px-1 text-[10px] font-mono text-white/50 text-center leading-tight">
             {message}
           </div>
         )}
-        {/* Check — full width on its own row */}
-        {renderCheckButton()}
-
         {/* Rebuild + Restart — side by side */}
         <div className="flex gap-1.5">
           <button
