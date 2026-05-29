@@ -15,6 +15,14 @@ export function gatewayUrl(path: string): string {
 }
 
 /**
+ * Build Authorization headers for the gateway when API_SERVER_KEY is set.
+ */
+export function gatewayAuthHeaders(): Record<string, string> {
+  const key = process.env.HERMES_GATEWAY_API_KEY?.trim();
+  return key ? { Authorization: `Bearer ${key}` } : {};
+}
+
+/**
  * Fetch JSON from the gateway with a timeout.
  */
 export async function fetchGateway(
@@ -25,6 +33,7 @@ export async function fetchGateway(
   const { timeoutMs: _drop, ...rest } = init ?? {};
   return fetch(gatewayUrl(path), {
     ...rest,
+    headers: { ...gatewayAuthHeaders(), ...(rest.headers as Record<string, string> | undefined) },
     signal: AbortSignal.timeout(timeoutMs),
   });
 }

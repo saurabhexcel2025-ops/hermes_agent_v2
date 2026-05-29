@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logApiError } from "@/lib/api-logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getAgentLlmEndpoints } from "@/lib/hermes-agent-runtime";
+import { gatewayAuthHeaders } from "@/lib/gateway-client";
 
 const DEFAULT_MODEL = "hermes-agent";
 
@@ -32,7 +33,7 @@ async function fetchGateway(
 ): Promise<Response | NextResponse> {
   const response = await fetch(apiUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...gatewayAuthHeaders() },
     body: JSON.stringify(gatewayBody),
   });
 
