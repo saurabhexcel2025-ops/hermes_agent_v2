@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   Brain, Search, Plus, Sparkles, List, FileText,
-  Settings, RefreshCw, Clock, Tag, Trash2, ToggleLeft, ToggleRight, Zap, Pencil,
+  Settings, RefreshCw, Clock, Tag, Trash2, ToggleLeft, ToggleRight, Zap, Pencil, Database,
 } from "lucide-react";
 import { SearchInput } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
@@ -88,7 +88,17 @@ interface MentalModel {
   last_refreshed_at: string;
 }
 
-type Tab = "memories" | "directives" | "mental-models";
+type Tab = "memories" | "directives" | "mental-models" | "mem0";
+
+interface Mem0Memory {
+  id: string;
+  memory: string;
+  categories?: string[];
+  tags?: string[];
+  score?: number;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export default function HindsightBrowser() {
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -134,6 +144,12 @@ export default function HindsightBrowser() {
   const [editModelQuery, setEditModelQuery] = useState("");
   const [editModelTags, setEditModelTags] = useState("");
   const [savingModel, setSavingModel] = useState(false);
+  // Mem0 state
+  const [mem0Memories, setMem0Memories] = useState<Mem0Memory[]>([]);
+  const [mem0Total, setMem0Total] = useState(0);
+  const [loadingMem0, setLoadingMem0] = useState(false);
+  const [mem0Available, setMem0Available] = useState<boolean | null>(null);
+
   const { showToast, toastElement } = useToast();
 
   const fetchHealthOnly = useCallback(async () => {
@@ -236,11 +252,17 @@ export default function HindsightBrowser() {
   }, [search, showToast, applyRecallPayload, fetchHealthOnly]);
 
   const handleSearch = () => {
-    void runRecall();
+    if (activeTab === "mem0") {
+      void loadMem0Memories(search);
+    } else {
+      void runRecall();
+    }
   };
 
   const handleRefreshMemories = () => {
-    if (search.trim()) {
+    if (activeTab === "mem0") {
+      void loadMem0Memories(search.trim() || undefined);
+    } else if (search.trim()) {
       void runRecall();
     } else {
       void loadRecentMemories();
@@ -482,6 +504,52 @@ export default function HindsightBrowser() {
     }
   };
 
+  // ── Mem0 handlers ──
+  const loadMem0Memories = useCallback(async (q?: string) => {
+    setLoadingMem0(true);
+    try {
+      const url = q?.trim()
+        ? `/api/memory/mem0?action=search&query=${encodeURIComponent(q)}&limit=50`
+        : `/api/memory/mem0?action=list&limit=50`;
+      const res = await fetch(url);
+      const body = await res.json() as { data?: { memories?: Mem0Memory[]; total?: number; available?: boolean } };
+      const d = body.data;
+      if (d?.available === false) {
+        setMem0Available(false);
+      } else {
+        setMem0Available(true);
+        setMem0Memories(d?.memories ?? []);
+        setMem0Total(d?.total ?? 0);
+      }
+    } catch {
+      setMem0Available(false);
+    } finally {
+      setLoadingMem0(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "mem0") {
+      void loadMem0Memories();
+    }
+  }, [activeTab, loadMem0Memories]);
+
+  const handleMem0Delete = async (id: string) => {
+    try {
+      const res = await fetch("/api/memory/mem0", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      showToast("Memory deleted", "success");
+      setMem0Memories(prev => prev.filter(m => m.id !== id));
+      setMem0Total(prev => Math.max(0, prev - 1));
+    } catch {
+      showToast("Failed to delete memory", "error");
+    }
+  };
+
   // ── Edit handlers ──
   const openEditDirective = (d: Directive) => {
     setEditingDirective(d);
@@ -637,6 +705,7 @@ export default function HindsightBrowser() {
           { id: "memories" as Tab, label: "Memories", icon: List },
           { id: "directives" as Tab, label: "Directives", icon: FileText },
           { id: "mental-models" as Tab, label: "Mental Models", icon: Settings },
+          { id: "mem0" as Tab, label: "Mem0", icon: Database },
         ]).map((tab) => (
           <button
             key={tab.id}
@@ -910,6 +979,72 @@ export default function HindsightBrowser() {
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === "mem0" && (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-xs text-white/30">
+              {mem0Available === false
+                ? "mem0 server unavailable"
+                : `${mem0Total} memor${mem0Total !== 1 ? "ies" : "y"} stored`}
+            </div>
+            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={() => void loadMem0Memories(search.trim() || undefined)} disabled={loadingMem0}>
+              Refresh
+            </Button>
+          </div>
+
+          {loadingMem0 ? (
+            <LoadingSpinner text="Loading mem0 memories..." />
+          ) : mem0Available === false ? (
+            <ErrorBanner message="mem0 server is not responding. Check that the mem0 container is running." />
+          ) : mem0Memories.length === 0 ? (
+            <EmptyState
+              icon={Database}
+              title="No mem0 memories yet"
+              description="The agent will store memories here automatically as it converses."
+            />
+          ) : (
+            <div className="space-y-3">
+              {mem0Memories.map((m) => (
+                <div
+                  key={m.id}
+                  className="rounded-xl border border-white/10 bg-dark-900/50 p-4 hover:border-blue-500/20 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white/70 leading-relaxed mb-2">{m.memory}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-white/30">
+                        {m.categories && m.categories.length > 0 && m.categories.map(c => (
+                          <Badge key={c} color="cyan" size="sm">{c}</Badge>
+                        ))}
+                        {m.tags && m.tags.length > 0 && m.tags.map(t => (
+                          <Badge key={t} color="purple" size="sm">{t}</Badge>
+                        ))}
+                        {m.score !== undefined && (
+                          <span>Score: {typeof m.score === "number" ? m.score.toFixed(2) : m.score}</span>
+                        )}
+                        {m.created_at && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {timeAgo(m.created_at)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void handleMem0Delete(m.id)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-colors shrink-0"
+                      title="Delete memory"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))}
