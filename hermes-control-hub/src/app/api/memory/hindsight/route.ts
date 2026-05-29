@@ -349,7 +349,8 @@ export async function GET(request: NextRequest) {
       (error.message.includes("connect") ||
        error.message.includes("ECONNREFUSED") ||
        error.message.includes("refused") ||
-       error.message.includes("timed out"));
+       error.message.includes("timed out") ||
+       error.message.includes("fetch failed"));
     return NextResponse.json(
       {
         data: {
