@@ -60,3 +60,8 @@ logs/
 
 # Docker volumes (runtime data, not code)
 data/
+
+# nginx basic-auth password files and config backups (secrets / local state)
+nginx/conf.d/.htpasswd
+*.bak
+*.bak.*
