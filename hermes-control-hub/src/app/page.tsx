@@ -419,7 +419,7 @@ export default function Dashboard() {
     ? `${diskModel}${diskProvider ? ` · ${diskProvider}` : ""}`
     : registryAgentModelLabel
       ? `${registryAgentModelLabel} · Models registry (push Bob to write config.yaml)`
-      : "-";
+      : "";
   const activeProcesses = useMemo(() => processes.filter((p) => p.status === "running"), [processes]);
   const activeMissions = useMemo(
     () =>
@@ -463,7 +463,9 @@ export default function Dashboard() {
             <span className="text-neon-cyan text-glow-cyan">MISSION</span>{" "}
             <span className="text-white/70">CONTROL</span>
           </h1>
-          <p className="text-xs text-white/40 font-mono">{modelSubtitle}</p>
+          {modelSubtitle && (
+            <p className="text-xs text-white/40 font-mono">{modelSubtitle}</p>
+          )}
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">

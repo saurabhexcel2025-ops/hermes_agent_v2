@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 
 import Link from "next/link";
 
@@ -19,7 +19,6 @@ import {
   ChevronLeft,
   ChevronDown,
   Settings,
-  Hammer,
   Power,
 } from "lucide-react";
 
@@ -36,239 +35,6 @@ function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
 
   return pathname.startsWith(href);
-}
-
-function VersionFooter({ collapsed }: { collapsed: boolean }) {
-  const [restarting, setRestarting] = useState(false);
-  const [rebuilding, setRebuilding] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const busyRef = useRef(false);
-
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      if (pollIntervalRef.current !== null) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleRestart = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setRestarting(true);
-    setMessage("Restart requested (~/.hermes/logs/ch-restart.log)…");
-    try {
-      const res = await fetch("/api/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "restart" }),
-      });
-      if (!res.ok) {
-        let msg = "Restart failed";
-        try {
-          const body = await res.json();
-          if (body?.error) msg = body.error;
-        } catch { /* ignore */ }
-        throw new Error(msg);
-      }
-      setMessage("Restarting server…");
-      pollDeployStatus("restart");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Restart failed";
-      setMessage(msg);
-      setRestarting(false);
-      busyRef.current = false;
-    }
-  };
-
-  const doRebuild = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setRebuilding(true);
-    setMessage("Rebuild started…");
-    try {
-      const res = await fetch("/api/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "rebuild" }),
-      });
-      if (!res.ok) {
-        let msg = "Rebuild failed";
-        try {
-          const body = await res.json();
-          if (body?.error) msg = body.error;
-        } catch { /* ignore */ }
-        throw new Error(msg);
-      }
-      pollDeployStatus("rebuild");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Rebuild failed";
-      setMessage(msg);
-      setRebuilding(false);
-      busyRef.current = false;
-    }
-  };
-
-  const clearDeployBusy = () => {
-    setRestarting(false);
-    setRebuilding(false);
-    busyRef.current = false;
-  };
-
-  const pollDeployStatus = (expectedAction: "rebuild" | "restart") => {
-    if (pollIntervalRef.current !== null) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    let attempts = 0;
-    const maxAttempts = 450;
-    const interval = setInterval(async () => {
-      attempts++;
-      try {
-        const res = await fetch("/api/update?deploy=1", {
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!res.ok) return;
-        const d = await res.json();
-        const deploy = d.data?.deploy as {
-          state?: string;
-          action?: string;
-          phase?: string;
-          message?: string;
-          logHint?: string;
-        } | undefined;
-        if (!deploy || !isMountedRef.current) return;
-
-        if (deploy.state === "running") {
-          const phaseLabel =
-            deploy.phase === "build"
-              ? "Building…"
-              : deploy.phase === "install"
-                ? "Installing dependencies…"
-                : deploy.phase === "restart"
-                  ? "Restarting server…"
-                  : deploy.phase === "git"
-                    ? "Updating code…"
-                    : deploy.message || "Working…";
-          setMessage(phaseLabel);
-          return;
-        }
-
-        if (deploy.state === "success") {
-          clearInterval(interval);
-          pollIntervalRef.current = null;
-          clearDeployBusy();
-          const label =
-            expectedAction === "rebuild"
-              ? "Rebuild complete"
-              : "Restart complete";
-          setMessage(label);
-          setTimeout(() => {
-            if (isMountedRef.current) setMessage(null);
-          }, 4000);
-          return;
-        }
-
-        if (deploy.state === "failed") {
-          clearInterval(interval);
-          pollIntervalRef.current = null;
-          clearDeployBusy();
-          const hint = deploy.logHint ? ` — see Logs → ${deploy.logHint}` : "";
-          setMessage((deploy.message || "Deploy failed") + hint);
-        }
-      } catch {
-        if (attempts >= maxAttempts) {
-          clearInterval(interval);
-          pollIntervalRef.current = null;
-          if (!isMountedRef.current) return;
-          clearDeployBusy();
-          setMessage("Timed out — check ch-restart.log in Logs");
-        }
-      }
-    }, 2000);
-    pollIntervalRef.current = interval;
-  };
-
-  const isBusy = restarting || rebuilding;
-
-  // ── Collapsed view ───────────────────────────────────────────
-  if (collapsed) {
-    return (
-      <>
-        <div className="flex flex-col items-center gap-2 relative">
-          {/* Rebuild */}
-          <button
-            onClick={() => doRebuild()}
-            disabled={isBusy}
-            className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
-            title={message || "Rebuild App"}
-          >
-            <Hammer className={`w-3.5 h-3.5 flex-shrink-0 ${rebuilding ? "animate-spin" : ""}`} />
-          </button>
-
-          {/* Restart */}
-          <button
-            onClick={handleRestart}
-            disabled={isBusy}
-            className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-            title={message || "Restart App"}
-          >
-            <Power className={`w-3.5 h-3.5 flex-shrink-0 ${restarting ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <div className="space-y-1.5">
-        {message && (
-          <div className="min-h-[1.25rem] px-1 text-[10px] font-mono text-white/50 text-center leading-tight">
-            {message}
-          </div>
-        )}
-        {/* Rebuild + Restart — side by side */}
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            title="npm run build + restart (current checkout)"
-            onClick={() => doRebuild()}
-            disabled={isBusy}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-mono transition-colors disabled:opacity-50 ${
-              rebuilding
-                ? "bg-neon-purple/20 border border-neon-purple/30 text-neon-purple/90"
-                : "bg-neon-purple/10 border border-neon-purple/20 text-neon-purple hover:bg-neon-purple/20"
-            }`}
-          >
-            <Hammer className={`w-3.5 h-3.5 flex-shrink-0 ${rebuilding ? "animate-spin" : ""}`} />
-            Rebuild
-          </button>
-
-          <button
-            type="button"
-            title="Restart next-server only (no build)"
-            onClick={handleRestart}
-            disabled={isBusy}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-mono transition-colors disabled:opacity-50 ${
-              restarting
-                ? "bg-red-500/20 border border-red-500/30 text-red-300"
-                : "bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20"
-            }`}
-          >
-            <Power className={`w-3.5 h-3.5 flex-shrink-0 ${restarting ? "animate-spin" : ""}`} />
-            Restart
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function ConfigGroupSection({
@@ -463,7 +229,6 @@ export default function Sidebar() {
       {/* Footer */}
 
       <div className="px-3 py-3 border-t border-white/10 space-y-2 flex-shrink-0">
-        <VersionFooter collapsed={collapsed} />
 
         {/* Logout */}
         <button
