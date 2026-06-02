@@ -525,7 +525,10 @@ export async function removeJobFromHermes(hermesJobId: string): Promise<{ ok: bo
 
 // ── Gateway trigger (run now) ─────────────────────────────────
 
-const GATEWAY_BASE = "http://127.0.0.1:8642";
+// Inside Docker the gateway lives on the host, reachable via HERMES_GATEWAY_URL
+// (e.g. http://host.docker.internal:8642). 127.0.0.1 only works when CH runs
+// on the same host as the gateway, so prefer the configured URL.
+const GATEWAY_BASE = process.env.HERMES_GATEWAY_URL || "http://127.0.0.1:8642";
 
 /**
  * Trigger a job to run immediately via the Hermes gateway's run endpoint.
@@ -537,11 +540,14 @@ export async function triggerJobViaGateway(
   hermesJobId: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
+    const apiKey = process.env.HERMES_GATEWAY_API_KEY;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
     const res = await fetch(
       `${GATEWAY_BASE}/api/jobs/${encodeURIComponent(hermesJobId)}/run`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         signal: AbortSignal.timeout(10_000),
       }
     );

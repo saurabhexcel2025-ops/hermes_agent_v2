@@ -31,6 +31,9 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Runtime tools for scripts/application/ch-deploy.sh (same entrypoint as POST /api/update).
+# python3: required at runtime to drive the Hermes venv (cron jobs.json read/write
+# via cron/jobs.py). bookworm ships Python 3.11, matching the Hermes venv, so the
+# venv/bin/python3 -> /usr/bin/python3 symlink resolves and executes.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     bash \
@@ -40,6 +43,7 @@ RUN apt-get update \
     gosu \
     iproute2 \
     psmisc \
+    python3 \
     socat \
   && rm -rf /var/lib/apt/lists/*
 

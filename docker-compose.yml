@@ -95,7 +95,12 @@ services:
       CONTROL_HUB_LLM_API: http://host.docker.internal:8642/v1/chat/completions
       HERMES_GATEWAY_API_KEY: ${HERMES_GATEWAY_API_KEY}
     volumes:
-      - /home/etech/hermes/.hermes:/data/hermes:ro
+      # Read-write: the Control Hub writes back into the Hermes home — cron
+      # jobs.json (via the Hermes venv Python) and profile config.yaml/SOUL.md
+      # (Agents tab "Push"). A read-only mount makes both fail with EACCES.
+      # The container drops to the mount-owner uid (see docker-entrypoint.sh),
+      # the same identity the host gateway runs as, so writes stay consistent.
+      - /home/etech/hermes/.hermes:/data/hermes:rw
       - ch_data:/data/ch
     depends_on:
       mem0-server:
