@@ -2,8 +2,10 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: hermes_postgres
+    # Loopback-only: reached over the internal docker network by service name
+    # (mem0-server). Never exposed on the host's public interface.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: hermes_auth
       POSTGRES_USER: hermes
@@ -20,9 +22,10 @@ services:
   neo4j:
     image: neo4j:5
     container_name: hermes_neo4j
+    # Loopback-only: reached over the internal docker network (mem0-server).
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
     environment:
       NEO4J_AUTH: neo4j/mem0_password
       NEO4J_PLUGINS: '["apoc"]'
@@ -43,8 +46,11 @@ services:
       context: ./mem0-server
       dockerfile: Dockerfile
     container_name: hermes_mem0
+    # Loopback-only: the mem0 API has no auth of its own, so it must never be
+    # published on the public interface. Still reachable via localhost:8888
+    # (host-network gateway) and by service name on the docker network.
     ports:
-      - "8888:8888"
+      - "127.0.0.1:8888:8888"
     environment:
       OLLAMA_CLOUD_API_KEY: ${OLLAMA_API_KEY}
       OLLAMA_CLOUD_BASE_URL: https://ollama.com/v1
