@@ -204,7 +204,7 @@ No new DB engine — reuses the existing Postgres pool.
 
 **Phase 2 — SOP knowledge base — ✅ built**
 - `sop/*.md` (CPU, memory, storage, comms), `ingest_sops.py`, `embeddings.py`
-  (**Ollama Cloud `nomic-embed-text`, 768 dims** — same provider as the LLM).
+  (local `multi-qa-MiniLM-L6-cos-v1`, 384 dims — Ollama Cloud has no embeddings API).
 
 **Phase 3 — Profiles — ✅ built**
 - `sentinel`, `watchtower` (mem0); `archivist`, `auditor` (hindsight). Each has

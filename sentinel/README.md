@@ -16,8 +16,8 @@ Runs inside the existing **`mem0-server`** container (no new container). See
 | `collector.py` | Watchtower daemon — polls every 10s → `telemetry` |
 | `thresholds.py` | Severity rules (CPU>90 CRITICAL, >70 WARN, …) |
 | `sop/*.md` | Standard Operating Procedures (knowledge base source) |
-| `ingest_sops.py` | Embed SOPs → pgvector `sops` (768-dim) |
-| `embeddings.py` | Ollama Cloud embeddings (`nomic-embed-text`) — same provider as the LLM |
+| `ingest_sops.py` | Embed SOPs → pgvector `sops` (384-dim, local) |
+| `embeddings.py` | local embedder `multi-qa-MiniLM-L6-cos-v1` (Ollama Cloud has no embeddings API) |
 | `sentinel_cycle.py` | Sentinel daemon — anomaly → SOP → glm-5 → `audit_log` → Hindsight |
 | `supervisor.sh` | Starts both daemons, then execs the mem0 server (container CMD) |
 | `db.py` | Postgres connection helper |

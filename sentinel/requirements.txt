@@ -1,4 +1,5 @@
-# The mem0-server image already provides psycopg2-binary.
-# Embeddings use Ollama Cloud over HTTP (stdlib urllib) — no ML deps needed.
+# The mem0-server image already provides these (psycopg2-binary + sentence-transformers).
+# Embeddings use the same local model as mem0 (Ollama Cloud has no embeddings API).
 # Listed here for running the daemons / ingester standalone outside that image.
 psycopg2-binary>=2.9.9
+sentence-transformers>=3.0.0

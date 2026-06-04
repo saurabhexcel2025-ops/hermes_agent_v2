@@ -41,10 +41,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log (ts DESC);
 
 -- ── SOP knowledge base — pgvector (replaces ChromaDB) ──
--- 768 dims = nomic-embed-text via Ollama Cloud (same provider as the LLM).
+-- 384 dims = multi-qa-MiniLM-L6-cos-v1, the same local embedder mem0 uses.
+-- (Ollama Cloud serves chat but not embeddings, so embeddings run locally.)
 CREATE TABLE IF NOT EXISTS sops (
   id         TEXT PRIMARY KEY,
   title      TEXT NOT NULL,
   body       TEXT NOT NULL,
-  embedding  vector(768)
+  embedding  vector(384)
 );
