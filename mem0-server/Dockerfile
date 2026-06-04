@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     curl \
     bash \
+    procps \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 

@@ -34,11 +34,16 @@ mem=$(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{printf "%.1f", (1-a/t)*100}
 dwr=$(awk -v a=$dw1 -v b=$dw2 'BEGIN{printf "%.1f", (b-a)*512/1024}')   # sectors*512 -> KB over 1s
 dl=$(awk -v a=$rb1 -v b=$rb2 'BEGIN{printf "%.1f", (b-a)/1024}')
 ul=$(awk -v a=$tb1 -v b=$tb2 'BEGIN{printf "%.1f", (b-a)/1024}')
-nproc=$(ps -e --no-headers | wc -l)
-top=$(ps -eo pid,%cpu,comm --sort=-%cpu --no-headers | head -1)
-tpid=$(echo "$top" | awk '{print $1}')
-tcpu=$(echo "$top" | awk '{print $2}')
-tcomm=$(echo "$top" | awk '{print $3}')
+nproc=$(ls -d /proc/[0-9]* 2>/dev/null | wc -l)
+tpid=0; tcpu=0; tcomm=none
+if command -v ps >/dev/null 2>&1; then
+  top=$(ps -eo pid,%cpu,comm --sort=-%cpu --no-headers 2>/dev/null | head -1)
+  if [ -n "$top" ]; then
+    tpid=$(echo "$top" | awk '{print $1+0}')
+    tcpu=$(echo "$top" | awk '{print $2+0}')
+    tcomm=$(echo "$top" | awk '{print $3}')
+  fi
+fi
 echo "$cpu $mem $dwr $dl $ul $nproc $tpid $tcpu $tcomm"
 """
 
@@ -69,6 +74,8 @@ def _run_probe() -> str:
 def read_telemetry() -> dict:
     """Return one telemetry sample as a dict of satellite-named metrics."""
     parts = _run_probe().split()
+    if len(parts) < 9:
+        raise RuntimeError(f"probe returned {len(parts)} fields, expected 9: {parts!r}")
     cpu, mem, dwr, dl, ul, nproc, tpid, tcpu, *comm = parts
     return {
         "target": os.environ.get("SENTINEL_TARGET_HOST", "localhost"),
