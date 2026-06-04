@@ -1,0 +1,4 @@
+# The mem0-server image already provides psycopg2-binary.
+# Embeddings use Ollama Cloud over HTTP (stdlib urllib) — no ML deps needed.
+# Listed here for running the daemons / ingester standalone outside that image.
+psycopg2-binary>=2.9.9

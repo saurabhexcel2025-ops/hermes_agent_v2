@@ -65,3 +65,8 @@ data/
 nginx/conf.d/.htpasswd
 *.bak
 *.bak.*
+
+# Sentinel — SSH private key for the monitored target (never commit)
+sentinel/id_target
+sentinel/id_target.*
+sentinel/.env

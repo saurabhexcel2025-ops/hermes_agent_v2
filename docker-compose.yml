@@ -51,6 +51,13 @@ services:
     # (host-network gateway) and by service name on the docker network.
     ports:
       - "127.0.0.1:8888:8888"
+    # The Sentinel collector + cycle daemons run inside THIS container (no new
+    # container). The supervisor backgrounds them, then execs the mem0 server.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["bash", "/data/sentinel/supervisor.sh"]
+    volumes:
+      - ./sentinel:/data/sentinel:ro
     environment:
       OLLAMA_CLOUD_API_KEY: ${OLLAMA_API_KEY}
       OLLAMA_CLOUD_BASE_URL: https://ollama.com/v1
@@ -65,6 +72,18 @@ services:
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       ENABLE_GRAPH: "true"
       PORT: "8888"
+      # ── Sentinel daemons ──
+      SENTINEL_TARGET_HOST: ${SENTINEL_TARGET_HOST:-}
+      SENTINEL_TARGET_USER: ${SENTINEL_TARGET_USER:-root}
+      SENTINEL_TARGET_PORT: ${SENTINEL_TARGET_PORT:-22}
+      SENTINEL_SSH_KEY: ${SENTINEL_SSH_KEY:-/data/sentinel/id_target}
+      SENTINEL_POLL_SECONDS: ${SENTINEL_POLL_SECONDS:-10}
+      SENTINEL_CYCLE_SECONDS: ${SENTINEL_CYCLE_SECONDS:-5}
+      SENTINEL_MODEL: ${OLLAMA_LLM_MODEL:-glm-5}
+      HERMES_GATEWAY_URL: http://host.docker.internal:8642
+      HERMES_GATEWAY_API_KEY: ${HERMES_GATEWAY_API_KEY}
+      HINDSIGHT_BASE_URL: http://host.docker.internal:9177
+      HINDSIGHT_BANK_ID: hermes
     depends_on:
       postgres:
         condition: service_healthy
