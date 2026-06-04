@@ -78,7 +78,7 @@ def read_telemetry() -> dict:
         raise RuntimeError(f"probe returned {len(parts)} fields, expected 9: {parts!r}")
     cpu, mem, dwr, dl, ul, nproc, tpid, tcpu, *comm = parts
     return {
-        "target": os.environ.get("SENTINEL_TARGET_HOST", "localhost"),
+        "target": os.environ.get("SENTINEL_TARGET_HOST") or "localhost",
         "processor_load": float(cpu),
         "ram_saturation": float(mem),
         "storage_write": float(dwr),
