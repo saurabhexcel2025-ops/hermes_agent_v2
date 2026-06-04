@@ -40,6 +40,12 @@ export interface ConfigGroup {
 
 export const mainSections: SidebarSection[] = [
   {
+    label: "Space Armour",
+    links: [
+      { icon: Network, label: "Sentinel Ops", href: "/sentinel", color: "purple" },
+    ],
+  },
+  {
     label: "Main",
     links: [
       { icon: Zap, label: "Dashboard", href: "/", color: "cyan" },

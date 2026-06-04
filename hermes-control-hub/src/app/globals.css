@@ -211,3 +211,11 @@
 .animate-spin-slow {
   animation: spin-slow 3s linear infinite;
 }
+
+/* Sentinel Ops — animated flow edges */
+.sentinel-flow {
+  animation: sentinel-dash 0.7s linear infinite;
+}
+@keyframes sentinel-dash {
+  to { stroke-dashoffset: -12; }
+}
