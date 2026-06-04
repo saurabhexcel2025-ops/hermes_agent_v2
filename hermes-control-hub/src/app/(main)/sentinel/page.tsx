@@ -96,7 +96,7 @@ const nodeById = (id: NodeId) => NODES.find((n) => n.id === id)!;
 // (a fresh telemetry poll, or a new audit entry). Between events it rests.
 //   stage 0: target → watchtower
 //   stage 1: watchtower → sentinel
-//   stage 2: sentinel → {archivist, auditor, memory}  (only on a real incident)
+//   stage 2: sentinel → {archivist, auditor, memory}  (severity sets the colour)
 const STAGE_MS = 750; // how long each stage is shown
 const EDGE_STAGE: Record<string, number> = {
   "target>watchtower": 0,
@@ -161,8 +161,8 @@ function timeAgo(ts: string): string {
 // ── Flow canvas — driven by the active stage (null = resting) ─────
 
 function FlowCanvas({
-  activeStage, incident, severity,
-}: { activeStage: number | null; incident: boolean; severity: string }) {
+  activeStage, severity,
+}: { activeStage: number | null; severity: string }) {
   // Progress (0..1) of the pulse along the current stage's edge. Only animates
   // while a stage is active; resets between events.
   const [progress, setProgress] = useState(0);
@@ -182,8 +182,7 @@ function FlowCanvas({
 
   const isProcessing = (id: NodeId): boolean => {
     const s = NODE_STAGE[id];
-    if (s === undefined) return false;       // target = source, not "processing"
-    if (s === 2 && !incident) return false;  // branches only run on an incident
+    if (s === undefined) return false; // target = source, not "processing"
     return s === activeStage;
   };
 
@@ -203,7 +202,7 @@ function FlowCanvas({
           {/* static edges — the one currently being traversed is brighter */}
           {EDGES.map(([from, to]) => {
             const stage = EDGE_STAGE[`${from}>${to}`];
-            const traversing = stage === activeStage && !(stage === 2 && !incident);
+            const traversing = stage === activeStage;
             return (
               <path
                 key={`${from}-${to}`}
@@ -221,7 +220,6 @@ function FlowCanvas({
           {EDGES.map(([from, to]) => {
             const stage = EDGE_STAGE[`${from}>${to}`];
             if (stage !== activeStage) return null;
-            if (stage === 2 && !incident) return null;
             const pt = pointOnEdge(nodeById(from), nodeById(to), progress);
             const color = AGENT_COLOR[to];
             return (
@@ -323,8 +321,9 @@ export default function SentinelOpsPage() {
         lastAuditRef.current !== null && newAuditId !== null && newAuditId !== lastAuditRef.current;
       const pollChanged =
         lastTsRef.current !== null && newTs !== null && newTs !== lastTsRef.current;
-      if (auditChanged) playSequence([0, 1, 2]);
-      else if (pollChanged) playSequence([0, 1]);
+      // Every event plays the full forward sweep through all nodes; severity
+      // only changes the colour (red on a real CRITICAL incident).
+      if (auditChanged || pollChanged) playSequence([0, 1, 2]);
       lastTsRef.current = newTs;
       lastAuditRef.current = newAuditId;
     } catch {
@@ -369,7 +368,7 @@ export default function SentinelOpsPage() {
       </div>
 
       <div className="flex flex-col xl:flex-row gap-4">
-        <FlowCanvas activeStage={activeStage} incident={incident} severity={sev} />
+        <FlowCanvas activeStage={activeStage} severity={sev} />
 
         {/* Activity feed */}
         <div className="xl:w-[360px] shrink-0 rounded-2xl border border-white/10 bg-[#0c0e14] flex flex-col max-h-[520px]">
