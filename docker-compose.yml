@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: hermes_auth
       POSTGRES_USER: hermes
-      POSTGRES_PASSWORD: hermes_pass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -27,7 +27,7 @@ services:
       - "127.0.0.1:7474:7474"
       - "127.0.0.1:7687:7687"
     environment:
-      NEO4J_AUTH: neo4j/mem0_password
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: apoc.*
       NEO4J_dbms_memory_heap_initial__size: 512m
@@ -59,10 +59,10 @@ services:
       POSTGRES_PORT: "5432"
       POSTGRES_DB: hermes_auth
       POSTGRES_USER: hermes
-      POSTGRES_PASSWORD: hermes_pass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       NEO4J_URL: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: mem0_password
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       ENABLE_GRAPH: "true"
       PORT: "8888"
     depends_on:
@@ -96,7 +96,7 @@ services:
       NEXT_PUBLIC_APP_URL: https://mc.spacearmour.io
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      DATABASE_URL: postgresql://hermes:hermes_pass@postgres:5432/hermes_auth
+      DATABASE_URL: postgresql://hermes:${POSTGRES_PASSWORD}@postgres:5432/hermes_auth
       HERMES_GATEWAY_URL: http://host.docker.internal:8642
       CONTROL_HUB_LLM_API: http://host.docker.internal:8642/v1/chat/completions
       HERMES_GATEWAY_API_KEY: ${HERMES_GATEWAY_API_KEY}
