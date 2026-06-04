@@ -123,8 +123,16 @@ export async function GET() {
   try {
     ensureDb();
     const profiles: AgentProfile[] = [];
-    const defaultProfile = rowToApiProfile("default");
-    if (defaultProfile) profiles.push(defaultProfile);
+    // CH_HIDE_DEFAULT_AGENT hides the synthetic "default" (Bob) root agent from
+    // the roster. The root config still exists for the gateway; it just isn't
+    // surfaced as a selectable agent in the dashboard.
+    const hideDefault =
+      process.env.CH_HIDE_DEFAULT_AGENT === "1" ||
+      process.env.CH_HIDE_DEFAULT_AGENT === "true";
+    if (!hideDefault) {
+      const defaultProfile = rowToApiProfile("default");
+      if (defaultProfile) profiles.push(defaultProfile);
+    }
 
     for (const row of listProfiles()) {
       const api = rowToApiProfile(row.slug);

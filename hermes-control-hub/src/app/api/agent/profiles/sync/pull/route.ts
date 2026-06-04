@@ -56,7 +56,13 @@ export async function POST(request: NextRequest) {
       for (const p of listProfiles()) {
         profileResults.push(pullProfileFromHermes(p.slug, { reconcileDisk }));
       }
-      const rootResult = pullRootFromHermes({ reconcileDisk });
+      // Skip the default (Bob) root agent when it is hidden.
+      const hideDefault =
+        process.env.CH_HIDE_DEFAULT_AGENT === "1" ||
+        process.env.CH_HIDE_DEFAULT_AGENT === "true";
+      const rootResult = hideDefault
+        ? { success: true, slug: "default", backupPath: null, error: null }
+        : pullRootFromHermes({ reconcileDisk });
       if (importDiscovered) {
         for (const d of discoverLocalProfiles().filter((p) => !p.inDatabase)) {
           profileResults.push(importDiscoveredProfile(d.slug));
