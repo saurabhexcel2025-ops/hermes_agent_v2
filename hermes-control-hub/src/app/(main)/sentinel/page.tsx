@@ -92,12 +92,12 @@ const EDGES: [NodeId, NodeId][] = [
 
 const nodeById = (id: NodeId) => NODES.find((n) => n.id === id)!;
 
-// The pulse sweeps the pipeline in order:
-//   stage 0: target → watchtower   (which node processes: watchtower)
-//   stage 1: watchtower → sentinel (sentinel)
-//   stage 2: sentinel → {archivist, auditor, memory}  (the three, only on incident)
-const FLOW_CYCLE = 3000; // ms for one full sweep
-const N_STAGES = 3;
+// The pulse advances one stage at a time, but ONLY when a real event happens
+// (a fresh telemetry poll, or a new audit entry). Between events it rests.
+//   stage 0: target → watchtower
+//   stage 1: watchtower → sentinel
+//   stage 2: sentinel → {archivist, auditor, memory}  (only on a real incident)
+const STAGE_MS = 750; // how long each stage is shown
 const EDGE_STAGE: Record<string, number> = {
   "target>watchtower": 0,
   "watchtower>sentinel": 1,
@@ -158,24 +158,27 @@ function timeAgo(ts: string): string {
   return `${Math.floor(s / 3600)}h ago`;
 }
 
-// ── Animated flow canvas (owns its own clock) ────────────────────
+// ── Flow canvas — driven by the active stage (null = resting) ─────
 
-function FlowCanvas({ incident, severity }: { incident: boolean; severity: string }) {
-  const [phase, setPhase] = useState(0); // 0..1 across one sweep
-  const startRef = useRef<number>(0);
+function FlowCanvas({
+  activeStage, incident, severity,
+}: { activeStage: number | null; incident: boolean; severity: string }) {
+  // Progress (0..1) of the pulse along the current stage's edge. Only animates
+  // while a stage is active; resets between events.
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
+    if (activeStage === null) { setProgress(0); return; }
     let raf = 0;
-    startRef.current = performance.now();
+    const start = performance.now();
     const tick = (now: number) => {
-      setPhase((((now - startRef.current) % FLOW_CYCLE) / FLOW_CYCLE));
-      raf = requestAnimationFrame(tick);
+      const p = Math.min(1, (now - start) / STAGE_MS);
+      setProgress(p);
+      if (p < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const activeStage = Math.min(N_STAGES - 1, Math.floor(phase * N_STAGES));
+  }, [activeStage]);
 
   const isProcessing = (id: NodeId): boolean => {
     const s = NODE_STAGE[id];
@@ -219,8 +222,7 @@ function FlowCanvas({ incident, severity }: { incident: boolean; severity: strin
             const stage = EDGE_STAGE[`${from}>${to}`];
             if (stage !== activeStage) return null;
             if (stage === 2 && !incident) return null;
-            const local = (phase * N_STAGES) - stage; // 0..1 within this stage
-            const pt = pointOnEdge(nodeById(from), nodeById(to), Math.min(1, Math.max(0, local)));
+            const pt = pointOnEdge(nodeById(from), nodeById(to), progress);
             const color = AGENT_COLOR[to];
             return (
               <g key={`pulse-${from}-${to}`}>
@@ -284,22 +286,59 @@ function FlowCanvas({ incident, severity }: { incident: boolean; severity: strin
 export default function SentinelOpsPage() {
   const [state, setState] = useState<SentinelState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeStage, setActiveStage] = useState<number | null>(null);
+
+  const lastTsRef = useRef<string | null>(null);
+  const lastAuditRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Step the pulse through a sequence of stages once, then rest (null).
+  const playSequence = useCallback((stages: number[]) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    let i = 0;
+    const advance = () => {
+      if (i >= stages.length) { setActiveStage(null); timerRef.current = null; return; }
+      setActiveStage(stages[i]);
+      i += 1;
+      timerRef.current = setTimeout(advance, STAGE_MS);
+    };
+    advance();
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/sentinel/state", { cache: "no-store" });
       const json = await res.json();
-      if (json.error) setError(json.error);
-      else { setState(json.data); setError(null); }
+      if (json.error) { setError(json.error); return; }
+      const data = json.data as SentinelState;
+      setState(data);
+      setError(null);
+
+      // Fire the pulse only on a REAL event: a new audit row = a handled
+      // incident (full sweep incl. branches); a new telemetry ts = a fresh
+      // poll (target→watchtower→sentinel evaluation, no branches).
+      const newTs = data.latest?.ts ?? null;
+      const newAuditId = data.audit?.[0]?.id ?? null;
+      const auditChanged =
+        lastAuditRef.current !== null && newAuditId !== null && newAuditId !== lastAuditRef.current;
+      const pollChanged =
+        lastTsRef.current !== null && newTs !== null && newTs !== lastTsRef.current;
+      if (auditChanged) playSequence([0, 1, 2]);
+      else if (pollChanged) playSequence([0, 1]);
+      lastTsRef.current = newTs;
+      lastAuditRef.current = newAuditId;
     } catch {
       setError("Failed to reach the Sentinel API");
     }
-  }, []);
+  }, [playSequence]);
 
   useEffect(() => {
     load();
     const t = setInterval(load, 2500);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [load]);
 
   const incident = state?.incidentActive ?? false;
@@ -330,7 +369,7 @@ export default function SentinelOpsPage() {
       </div>
 
       <div className="flex flex-col xl:flex-row gap-4">
-        <FlowCanvas incident={incident} severity={sev} />
+        <FlowCanvas activeStage={activeStage} incident={incident} severity={sev} />
 
         {/* Activity feed */}
         <div className="xl:w-[360px] shrink-0 rounded-2xl border border-white/10 bg-[#0c0e14] flex flex-col max-h-[520px]">
