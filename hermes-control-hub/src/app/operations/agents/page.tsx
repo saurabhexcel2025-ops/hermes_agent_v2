@@ -415,9 +415,17 @@ export default function BehaviourPage() {
                             : "border-transparent hover:bg-white/5"
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => file.exists && openFile(selectedProfile.id, file)}
+                          disabled={!file.exists}
+                          title={file.exists ? "View contents" : "File not created yet"}
+                          className={`flex items-center gap-2 min-w-0 text-left ${
+                            file.exists ? "cursor-pointer" : "cursor-default"
+                          }`}
+                        >
                           <FileText className="w-4 h-4 text-white/30 shrink-0" />
-                          <span className="text-sm text-white/70 font-mono truncate">{file.name}</span>
+                          <span className="text-sm text-white/70 font-mono truncate hover:text-white">{file.name}</span>
                           {file.exists ? (
                             <span className="text-xs text-white/20 shrink-0">
                               {(file.size / 1024).toFixed(1)}KB
@@ -425,7 +433,7 @@ export default function BehaviourPage() {
                           ) : (
                             <span className="text-xs text-white/25 shrink-0">missing</span>
                           )}
-                        </div>
+                        </button>
                         <Button
                           variant="ghost"
                           size="sm"
