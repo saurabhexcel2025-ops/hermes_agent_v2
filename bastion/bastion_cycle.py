@@ -39,6 +39,7 @@ GATEWAY_KEY = os.environ.get("HERMES_GATEWAY_API_KEY", "")
 MODEL = os.environ.get("BASTION_MODEL", "glm-5")
 HINDSIGHT_URL = os.environ.get("HINDSIGHT_BASE_URL", "http://host.docker.internal:9177")
 HINDSIGHT_BANK = os.environ.get("HINDSIGHT_BANK_ID", "hermes")
+HINDSIGHT_ORG = os.environ.get("HINDSIGHT_ORG", "default")
 
 IPSET_NAME = os.environ.get("BASTION_IPSET_NAME", "bastion_block")
 # Where the actual blocking happens. ipset timeout = ttl in seconds. The sudo
@@ -145,11 +146,17 @@ def retain_hindsight(ip: str, attempts: int, severity: str, summary: str) -> Non
     try:
         text = (f"SSH brute-force from {ip}: {attempts} attempts in "
                 f"{WINDOW_SECONDS}s ({severity}). Blocked for {BLOCK_SECONDS}s. {summary}")
-        payload = json.dumps({"bank_id": HINDSIGHT_BANK, "text": text,
-                              "tags": ["bastion", "ssh", "block", severity.lower()]}).encode()
+        tags = ["bastion", "ssh", "block", severity.lower()]
+        # Hindsight retain endpoint: POST /v1/{org}/banks/{bank}/memories with a
+        # RetainRequest body ({items:[{content,tags}], document_tags, async}).
+        payload = json.dumps({
+            "items": [{"content": text, "tags": tags}],
+            "document_tags": tags,
+            "async": True,
+        }).encode()
         req = urllib.request.Request(
-            f"{HINDSIGHT_URL}/retain", data=payload,
-            headers={"Content-Type": "application/json"})
+            f"{HINDSIGHT_URL}/v1/{HINDSIGHT_ORG}/banks/{HINDSIGHT_BANK}/memories",
+            data=payload, headers={"Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=15).read()
     except Exception as exc:
         log.warning("hindsight retain skipped: %s", exc)

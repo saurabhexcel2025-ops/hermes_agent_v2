@@ -34,6 +34,7 @@ GATEWAY_KEY = os.environ.get("HERMES_GATEWAY_API_KEY", "")
 MODEL = os.environ.get("SENTINEL_MODEL", "glm-5")
 HINDSIGHT_URL = os.environ.get("HINDSIGHT_BASE_URL", "http://host.docker.internal:9177")
 HINDSIGHT_BANK = os.environ.get("HINDSIGHT_BANK_ID", "hermes")
+HINDSIGHT_ORG = os.environ.get("HINDSIGHT_ORG", "default")
 
 SYSTEM_PROMPT = (
     "You are Sentinel, an autonomous spacecraft operations monitor. You watch "
@@ -104,11 +105,17 @@ def retain_hindsight(snapshot: dict, result: dict) -> None:
         text = (f"Incident on {snapshot['target']}: {snapshot['severity']} — "
                 f"process {snapshot.get('top_proc')} (pid {snapshot.get('top_pid')}) "
                 f"at {snapshot.get('processor_load')}% CPU. {result.get('summary')}")
-        payload = json.dumps({"bank_id": HINDSIGHT_BANK, "text": text,
-                              "tags": ["sentinel", "incident", snapshot["severity"].lower()]}).encode()
+        tags = ["sentinel", "incident", snapshot["severity"].lower()]
+        # Hindsight retain endpoint: POST /v1/{org}/banks/{bank}/memories with a
+        # RetainRequest body ({items:[{content,tags}], document_tags, async}).
+        payload = json.dumps({
+            "items": [{"content": text, "tags": tags}],
+            "document_tags": tags,
+            "async": True,
+        }).encode()
         req = urllib.request.Request(
-            f"{HINDSIGHT_URL}/retain", data=payload,
-            headers={"Content-Type": "application/json"})
+            f"{HINDSIGHT_URL}/v1/{HINDSIGHT_ORG}/banks/{HINDSIGHT_BANK}/memories",
+            data=payload, headers={"Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=15).read()
     except Exception as exc:  # never let memory mirroring break the cycle
         log.warning("hindsight retain skipped: %s", exc)
