@@ -43,6 +43,7 @@ export const mainSections: SidebarSection[] = [
     label: "Space Armour",
     links: [
       { icon: Network, label: "Sentinel Ops", href: "/sentinel", color: "purple" },
+      { icon: ShieldCheck, label: "Perimeter Ops", href: "/bastion", color: "purple" },
     ],
   },
   {

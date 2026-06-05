@@ -70,3 +70,8 @@ nginx/conf.d/.htpasswd
 sentinel/id_target
 sentinel/id_target.*
 sentinel/.env
+
+# Bastion — SSH private key for the monitored target (never commit)
+bastion/id_target
+bastion/id_target.*
+bastion/.env

@@ -1,0 +1,11 @@
+memory:
+  provider: mem0
+  memory_enabled: true
+  user_profile_enabled: true
+
+agent:
+  max_turns: 30
+  personality: technical
+
+terminal:
+  cwd: .

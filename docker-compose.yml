@@ -55,9 +55,12 @@ services:
     # container). The supervisor backgrounds them, then execs the mem0 server.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["bash", "/data/sentinel/supervisor.sh"]
+    # Bastion daemons start first (backgrounded, returns), then Sentinel's
+    # supervisor backgrounds its daemons and execs the mem0 server as PID 1.
+    command: ["bash", "-c", "bash /data/bastion/supervisor.sh; exec bash /data/sentinel/supervisor.sh"]
     volumes:
       - ./sentinel:/data/sentinel:ro
+      - ./bastion:/data/bastion:ro
     environment:
       OLLAMA_CLOUD_API_KEY: ${OLLAMA_API_KEY}
       OLLAMA_CLOUD_BASE_URL: https://ollama.com/v1
@@ -84,6 +87,20 @@ services:
       HERMES_GATEWAY_API_KEY: ${HERMES_GATEWAY_API_KEY}
       HINDSIGHT_BASE_URL: http://host.docker.internal:9177
       HINDSIGHT_BANK_ID: hermes
+      # ── Bastion daemons (SSH perimeter guard — separate from Sentinel) ──
+      BASTION_TARGET_HOST: ${BASTION_TARGET_HOST:-${SENTINEL_TARGET_HOST:-}}
+      BASTION_TARGET_USER: ${BASTION_TARGET_USER:-${SENTINEL_TARGET_USER:-etech}}
+      BASTION_TARGET_PORT: ${BASTION_TARGET_PORT:-${SENTINEL_TARGET_PORT:-22}}
+      BASTION_SSH_KEY: ${BASTION_SSH_KEY:-/data/bastion/id_target}
+      BASTION_ATTEMPTS: ${BASTION_ATTEMPTS:-5}
+      BASTION_WINDOW_SECONDS: ${BASTION_WINDOW_SECONDS:-60}
+      BASTION_BLOCK_SECONDS: ${BASTION_BLOCK_SECONDS:-3600}
+      BASTION_POLL_SECONDS: ${BASTION_POLL_SECONDS:-5}
+      BASTION_CYCLE_SECONDS: ${BASTION_CYCLE_SECONDS:-5}
+      BASTION_WHITELIST: ${BASTION_WHITELIST:-}
+      BASTION_IPSET_NAME: ${BASTION_IPSET_NAME:-bastion_block}
+      BASTION_SUDO: ${BASTION_SUDO:-sudo}
+      BASTION_MODEL: ${OLLAMA_LLM_MODEL:-glm-5}
     depends_on:
       postgres:
         condition: service_healthy

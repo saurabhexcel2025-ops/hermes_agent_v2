@@ -1,0 +1,11 @@
+memory:
+  provider: hindsight
+  memory_enabled: true
+  user_profile_enabled: true
+
+agent:
+  max_turns: 20
+  personality: technical
+
+terminal:
+  cwd: .
