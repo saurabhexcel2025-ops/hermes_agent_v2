@@ -19,9 +19,9 @@ unchecked it ties up sshd, fills the auth log, and risks credential compromise.
 
 ## Response
 1. Block the offending IP at the host: add it to the `bastion_block` ipset with a
-   5-minute timeout. A standing iptables rule drops all traffic matching the set,
-   so SSH from that IP is refused, after which ipset expires the entry
-   automatically.
+   time-boxed timeout (the configured block duration). A standing iptables rule
+   drops all traffic matching the set, so SSH from that IP is refused, after which
+   ipset expires the entry automatically.
 2. Block the offending IP at the network edge: create a VPC INGRESS DENY firewall
    rule for the `/32` on tcp:22 (priority above the allow-ssh rule), so the IP is
    dropped before it reaches the VM. The rule is removed when the block expires.
@@ -37,6 +37,6 @@ unchecked it ties up sshd, fills the auth log, and risks credential compromise.
 - The block action and its expiry.
 
 ## Notes
-Enforcement is automatic and time-boxed (5 minutes), applied at both the host
-(ipset) and the VPC network edge (firewall). Repeat offenders re-trip the rule on
-their next burst after the block expires.
+Enforcement is automatic and time-boxed to the configured block duration, applied
+at both the host (ipset) and the VPC network edge (firewall). Repeat offenders
+re-trip the rule on their next burst after the block expires.

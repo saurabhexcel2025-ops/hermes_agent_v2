@@ -54,10 +54,24 @@ SYSTEM_PROMPT = (
     "You are Bastion, an autonomous SSH perimeter guard. You watch live SSH "
     "login activity and identify source IPs mounting brute-force / abusive "
     "login bursts against the protected server, grounded in the Standard "
-    "Operating Procedure provided. You explain the threat plainly. Respond "
-    "ONLY with strict JSON: "
+    "Operating Procedure provided. You explain the threat plainly. When you "
+    "mention the block / expiry duration, use EXACTLY the block_duration value "
+    "given in the input — never invent or assume a different figure (e.g. do not "
+    "say '1 hour' unless that is the provided block_duration). Respond ONLY with "
+    "strict JSON: "
     '{"summary": str, "sop_ref": str, "confidence": number}'
 )
+
+
+def human_duration(secs: int) -> str:
+    """Render a block duration as natural text, e.g. 120 -> '2 minutes'."""
+    if secs >= 3600 and secs % 3600 == 0:
+        n = secs // 3600
+        return f"{n} hour" + ("" if n == 1 else "s")
+    if secs >= 60 and secs % 60 == 0:
+        n = secs // 60
+        return f"{n} minute" + ("" if n == 1 else "s")
+    return f"{secs} second" + ("" if secs == 1 else "s")
 
 AGGREGATE = """
 SELECT src_ip, COUNT(*) AS attempts, MAX(event_ts) AS last_ts
@@ -111,6 +125,8 @@ def reason(ip: str, attempts: int, sop_body: str) -> dict:
     snapshot = {
         "src_ip": ip, "attempts": attempts,
         "window_seconds": WINDOW_SECONDS, "threshold": ATTEMPTS,
+        "block_seconds": BLOCK_SECONDS,
+        "block_duration": human_duration(BLOCK_SECONDS),
     }
     payload = json.dumps({
         "model": MODEL,
