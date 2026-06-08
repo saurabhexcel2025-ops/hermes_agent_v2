@@ -2,3 +2,6 @@
 # Listed here for running the daemons / ingester standalone outside that image.
 psycopg2-binary>=2.9.9
 sentence-transformers>=3.0.0
+# VPC edge enforcement (firewall create/delete via the Compute API). Only needed
+# when BASTION_VPC_ENABLE=true; supervisor.sh installs it on startup if missing.
+google-auth>=2.0.0

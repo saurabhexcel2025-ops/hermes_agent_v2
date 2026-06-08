@@ -25,8 +25,9 @@ CREATE INDEX IF NOT EXISTS idx_ssh_events_ts  ON ssh_events (event_ts DESC);
 CREATE INDEX IF NOT EXISTS idx_ssh_events_ip  ON ssh_events (src_ip);
 
 -- ── Active / historical blocks (the enforcement record) ──────────
--- ipset owns the real 1h expiry (timeout); this table mirrors it so the
--- dashboard can show a countdown and so the cycle can avoid re-blocking.
+-- ipset owns the real expiry (timeout, 5m); this table mirrors it so the
+-- dashboard can show a countdown, the cycle can avoid re-blocking, and the
+-- sweeper can find expired blocks to remove the (TTL-less) VPC firewall rule.
 CREATE TABLE IF NOT EXISTS ssh_blocks (
   id             BIGSERIAL PRIMARY KEY,
   src_ip         TEXT NOT NULL,
@@ -52,7 +53,7 @@ CREATE TABLE IF NOT EXISTS ssh_audit_log (
   sop_ref        TEXT,          -- SOP id/title used for context
   reasoning      TEXT,          -- glm-5 plain-English summary
   confidence     REAL,          -- 0..1
-  action_taken   TEXT           -- e.g. "ipset add bastion_block <ip> timeout 3600"
+  action_taken   TEXT           -- e.g. "ipset add bastion_block <ip> timeout 300 | vpc DENY ..."
 );
 CREATE INDEX IF NOT EXISTS idx_ssh_audit_ts ON ssh_audit_log (ts DESC);
 

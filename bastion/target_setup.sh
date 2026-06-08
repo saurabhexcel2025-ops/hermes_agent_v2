@@ -26,7 +26,7 @@ ipset create "$SET_NAME" hash:ip timeout 0 -exist
 
 echo "[bastion] inserting standing iptables DROP rule for the set (idempotent)..."
 # Drop new SSH connections from any IP currently in the set. Inserted at the top
-# of INPUT so it wins. ipset's per-entry timeout removes IPs after 1h.
+# of INPUT so it wins. ipset's per-entry timeout removes IPs after the block TTL.
 if ! iptables -C INPUT -m set --match-set "$SET_NAME" src -p tcp --dport 22 -j DROP 2>/dev/null; then
   iptables -I INPUT 1 -m set --match-set "$SET_NAME" src -p tcp --dport 22 -j DROP
 fi

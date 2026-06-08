@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # Bastion demo trigger — fire a burst of SSH attempts at the target so Bastion
-# detects the brute-force, reasons over it, and blocks the source IP for 1 hour.
+# detects the brute-force, reasons over it, and blocks the source IP for 5 minutes.
 #
 #   ./brute_force.sh <target_host> [attempts] [port]
 #

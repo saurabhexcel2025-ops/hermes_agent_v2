@@ -88,7 +88,7 @@ const NODES: FlowNode[] = [
   { id: "target",     label: "Target",     sub: "space-armour-server", icon: Server,      x: 24,  y: 184 },
   { id: "gatekeeper", label: "Gatekeeper", sub: "SSH log monitor",     icon: ScanLine,    x: 252, y: 184 },
   { id: "bastion",    label: "Bastion",    sub: "Detect & reason",     badge: "glm-5", icon: ShieldAlert, x: 480, y: 184 },
-  { id: "warden",     label: "Warden",     sub: "Block (ipset 1h)",    icon: Ban,         x: 760, y: 56  },
+  { id: "warden",     label: "Warden",     sub: "Block (ipset+VPC 5m)", icon: Ban,        x: 760, y: 56  },
   { id: "auditor",    label: "Auditor",    sub: "SSH audit trail",     icon: ScrollText,  x: 760, y: 184 },
   { id: "memory",     label: "Memory",     sub: "mem0 + Hindsight",    icon: Database,    x: 760, y: 312 },
 ];

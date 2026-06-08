@@ -60,6 +60,8 @@ services:
     command: ["bash", "-c", "bash /data/bastion/supervisor.sh; exec bash /data/sentinel/supervisor.sh"]
     volumes:
       - ./sentinel:/data/sentinel:ro
+      # Includes the gitignored GCP SA key (bastion/gcp-fw-sa.json) used for VPC
+      # edge enforcement when BASTION_VPC_ENABLE=true — no separate mount needed.
       - ./bastion:/data/bastion:ro
     environment:
       OLLAMA_CLOUD_API_KEY: ${OLLAMA_API_KEY}
@@ -94,13 +96,21 @@ services:
       BASTION_SSH_KEY: ${BASTION_SSH_KEY:-/data/bastion/id_target}
       BASTION_ATTEMPTS: ${BASTION_ATTEMPTS:-5}
       BASTION_WINDOW_SECONDS: ${BASTION_WINDOW_SECONDS:-60}
-      BASTION_BLOCK_SECONDS: ${BASTION_BLOCK_SECONDS:-3600}
+      BASTION_BLOCK_SECONDS: ${BASTION_BLOCK_SECONDS:-300}
       BASTION_POLL_SECONDS: ${BASTION_POLL_SECONDS:-5}
       BASTION_CYCLE_SECONDS: ${BASTION_CYCLE_SECONDS:-5}
       BASTION_WHITELIST: ${BASTION_WHITELIST:-}
       BASTION_IPSET_NAME: ${BASTION_IPSET_NAME:-bastion_block}
       BASTION_SUDO: ${BASTION_SUDO:-sudo}
       BASTION_MODEL: ${OLLAMA_LLM_MODEL:-glm-5}
+      # VPC edge enforcement (defense-in-depth: drop the attacker /32 at the
+      # network firewall too). Off until the SA key is in place; sweeper deletes
+      # rules on expiry since VPC rules have no TTL.
+      BASTION_VPC_ENABLE: ${BASTION_VPC_ENABLE:-false}
+      BASTION_GCP_PROJECT: ${BASTION_GCP_PROJECT:-}
+      BASTION_GCP_NETWORK: ${BASTION_GCP_NETWORK:-default}
+      BASTION_GCP_SA_KEY: ${BASTION_GCP_SA_KEY:-/data/bastion/gcp-fw-sa.json}
+      BASTION_VPC_PRIORITY: ${BASTION_VPC_PRIORITY:-100}
     depends_on:
       postgres:
         condition: service_healthy

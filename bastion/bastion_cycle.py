@@ -5,12 +5,15 @@ Unlike Sentinel (detect-and-log only), Bastion enforces. Loop:
   2. For any IP with > ATTEMPTS attempts that is NOT whitelisted and NOT already
      blocked: retrieve the most relevant SOP (pgvector) and ask glm-5 for a
      plain-English summary + confidence.
-  3. Apply the block on the target:  ipset add bastion_block <ip> timeout 3600.
-     A single persistent iptables rule (set up once) drops anything in the set,
-     and ipset's per-entry timeout auto-expires the block after 1 hour — so no
-     unblock sweeper is needed.
+  3. Apply the block two ways:
+       - ipset add bastion_block <ip> timeout BLOCK_SECONDS on the target (a
+         single persistent iptables rule drops anything in the set; ipset's
+         per-entry timeout auto-expires it).
+       - a VPC edge firewall DENY rule for <ip>/32 on tcp:22 (best-effort,
+         additive). VPC rules have no TTL, so step 6 sweeps them.
   4. Record the decision in ssh_audit_log and the block in ssh_blocks.
   5. Mirror the incident into Hindsight (best-effort).
+  6. Sweep expired blocks: delete the VPC rule (+ ipset entry) and mark released.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from db import connect
 from embeddings import embed, to_pgvector
 from probe import ssh_exec
 from thresholds import ATTEMPTS, WINDOW_SECONDS, BLOCK_SECONDS, severity_for
+from vpc_block import enabled as vpc_enabled, vpc_block, vpc_unblock
 from whitelist import is_whitelisted
 
 logging.basicConfig(
@@ -83,6 +87,13 @@ INSERT INTO ssh_blocks
   (src_ip, target, expires_at, attempt_count, reason, audit_id)
 VALUES (%s, %s, now() + (%s || ' seconds')::interval, %s, %s, %s)
 """
+
+EXPIRED = """
+SELECT id, src_ip FROM ssh_blocks
+WHERE released_at IS NULL AND expires_at <= now()
+"""
+
+RELEASE = "UPDATE ssh_blocks SET released_at = now() WHERE id = %s"
 
 
 def search_sop(conn, text: str):
@@ -185,8 +196,15 @@ def handle(conn, ip: str, attempts: int) -> None:
         log.exception("reasoning failed for %s — blocking anyway", ip)
         result = {"summary": descriptor, "sop_ref": sop_id, "confidence": None}
 
+    # Enforce at the host (ipset) AND, if configured, at the VPC edge (firewall).
+    # Either succeeding counts as a block; both actions are recorded for audit.
     ok, action = apply_block(ip)
-    action_taken = action if ok else f"FAILED: {action}"
+    vpc_ok, vpc_action = vpc_block(ip)
+    blocked = ok or vpc_ok
+    action_taken = " | ".join([
+        action if ok else f"FAILED: {action}",
+        vpc_action,
+    ])
 
     with conn.cursor() as cur:
         cur.execute(AUDIT_INSERT, (
@@ -195,22 +213,41 @@ def handle(conn, ip: str, attempts: int) -> None:
             result.get("confidence"), action_taken,
         ))
         audit_id = cur.fetchone()[0]
-        if ok:
+        if blocked:
             cur.execute(BLOCK_INSERT, (
                 ip, target, BLOCK_SECONDS, attempts,
                 result.get("summary") or descriptor, audit_id,
             ))
 
-    log.info("%s %s — %d attempts (conf=%s)",
-             "BLOCKED" if ok else "DETECTED(block-failed)", ip, attempts,
-             result.get("confidence"))
+    log.info("%s %s — %d attempts (conf=%s) [ipset=%s vpc=%s]",
+             "BLOCKED" if blocked else "DETECTED(block-failed)", ip, attempts,
+             result.get("confidence"), ok, vpc_ok)
     retain_hindsight(ip, attempts, severity, result.get("summary") or "")
+
+
+def sweep_expired(conn) -> None:
+    """Release blocks whose TTL has passed. ipset entries auto-expire, but VPC
+    firewall rules have no TTL — so we delete the rule here and mark released.
+    The ipset entry is also removed explicitly (best-effort) to stay tidy."""
+    with conn.cursor() as cur:
+        cur.execute(EXPIRED)
+        rows = cur.fetchall()
+    for block_id, ip in rows:
+        try:
+            ssh_exec(f"{SUDO} ipset del {IPSET_NAME} {ip} -exist", timeout=15)
+        except Exception:
+            log.exception("ipset del raised for %s", ip)
+        if vpc_enabled():
+            vpc_unblock(ip)
+        with conn.cursor() as cur:
+            cur.execute(RELEASE, (block_id,))
+        log.info("RELEASED %s (block %d expired)", ip, block_id)
 
 
 def main() -> None:
     conn = connect()
-    log.info("cycle started — model=%s gateway=%s threshold=>%d/%ds block=%ds",
-             MODEL, GATEWAY_URL, ATTEMPTS, WINDOW_SECONDS, BLOCK_SECONDS)
+    log.info("cycle started — model=%s gateway=%s threshold=>%d/%ds block=%ds vpc=%s",
+             MODEL, GATEWAY_URL, ATTEMPTS, WINDOW_SECONDS, BLOCK_SECONDS, vpc_enabled())
     while True:
         try:
             with conn.cursor() as cur:
@@ -218,6 +255,7 @@ def main() -> None:
                 offenders = cur.fetchall()
             for ip, attempts, _last_ts in offenders:
                 handle(conn, ip, int(attempts))
+            sweep_expired(conn)
         except Exception:
             log.exception("cycle iteration failed")
             try:

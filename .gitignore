@@ -75,3 +75,6 @@ sentinel/.env
 bastion/id_target
 bastion/id_target.*
 bastion/.env
+# Bastion — GCP service-account key for VPC firewall enforcement (never commit)
+bastion/gcp-fw-sa.json
+bastion/gcp-fw-sa.*.json
