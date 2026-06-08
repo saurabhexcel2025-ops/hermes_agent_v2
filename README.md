@@ -31,9 +31,14 @@ Encrypt at two domains:
    - [4. The Hermes agent + gateway (host)](#4-the-hermes-agent--gateway-host)
    - [5. The Hermes dashboard (host, systemd)](#5-the-hermes-dashboard-host-systemd)
 8. [Per-Service Reference](#per-service-reference)
-9. [Updating / Redeploying](#updating--redeploying)
-10. [Operations & Troubleshooting](#operations--troubleshooting)
-11. [Security Notes](#security-notes)
+9. [Autonomous Agents (Space Armour Ops)](#autonomous-agents-space-armour-ops)
+   - [Sentinel — telemetry watchdog](#sentinel--telemetry-watchdog-detect--log)
+   - [Bastion — SSH perimeter guard](#bastion--ssh-perimeter-guard-detect--enforce)
+   - [Crew profiles](#crew-profiles)
+   - [Mission Control Ops pages](#mission-control-ops-pages)
+10. [Updating / Redeploying](#updating--redeploying)
+11. [Operations & Troubleshooting](#operations--troubleshooting)
+12. [Security Notes](#security-notes)
 
 ---
 
@@ -130,6 +135,8 @@ hermes/
 │   ├── Dockerfile
 │   ├── docker-entrypoint.sh    # Drops to mount-owner uid (gosu)
 │   └── src/
+├── sentinel/                   # Sentinel agent (telemetry watchdog) — see sentinel/README.md
+├── bastion/                    # Bastion agent (SSH perimeter guard) — see bastion/README.md
 └── .hermes/                    # Hermes agent runtime (HERMES_HOME)
     ├── config.yaml             # Model, memory, provider config
     ├── .env                    # Agent API keys, MEM0_BASE_URL, gateway key
@@ -370,6 +377,112 @@ docker compose logs -f control-hub
 docker exec hermes_nginx nginx -t        # test config
 docker exec hermes_nginx nginx -s reload # reload after editing confs
 ```
+
+---
+
+## Autonomous Agents (Space Armour Ops)
+
+On top of the platform we run a set of **autonomous operations agents** that
+monitor a separate target server (`space-armour-server`) and act on what they
+see. Each agent is a small detect → reason → act loop: a mechanical **collector**
+gathers telemetry into Postgres, a **cycle** daemon spots anomalies, retrieves the
+matching Standard Operating Procedure (SOP) from a pgvector knowledge base,
+**reasons about it with glm-5** via the Hermes gateway, and seals an audit trail
+(mirrored into Hindsight). They run **inside the `hermes_mem0` container** (no
+extra containers) and are bind-mounted `:ro`, so a `docker compose up -d
+--force-recreate mem0-server` reloads their code with no image rebuild.
+
+| Agent | Surface | Posture | Enforces? | Detail |
+|---|---|---|---|---|
+| **Sentinel** | CPU / resource telemetry | detect-and-log | No | [`sentinel/README.md`](sentinel/README.md) |
+| **Bastion** | SSH (port 22) brute-force | detect-and-block | Yes (ipset/iptables + optional VPC) | [`bastion/README.md`](bastion/README.md) |
+
+Both target `space-armour-server` (internal `10.128.0.3`, external
+`35.253.182.184`, zone `us-central1-f`, same project/VPC as the host). They SSH to
+it over the internal IP using a bind-mounted key, and their tables live in the
+`hermes_auth` Postgres DB. The LLM is cloud (glm-5); **embeddings are local**
+(`multi-qa-MiniLM-L6-cos-v1`, 384-dim) because Ollama Cloud has no embeddings API.
+
+### Sentinel — telemetry watchdog (detect + log)
+
+Watches the target's CPU/memory/disk/net over SSH. On a spike it identifies the
+culprit process, pulls the matching SOP, asks glm-5 to explain it, and writes a
+**sealed `audit_log` row — no remediation**. It is the read-only sibling of
+Bastion.
+
+- **Daemons:** `collector.py` (Watchtower, polls every ~10s → `telemetry`) +
+  `sentinel_cycle.py` (anomaly → SOP → glm-5 → `audit_log` → Hindsight).
+- **Tables (`hermes_auth`):** `telemetry`, `audit_log`, `sops` (pgvector).
+- **Thresholds:** CPU > 90 ⇒ CRITICAL, > 70 ⇒ WARN (see `sentinel/thresholds.py`).
+- **Demo:** spike the target — `stress-ng --cpu 4 --timeout 30s` — or hit the
+  bundled CPU-load API (`:8099/spike?token=…`); within ~10s a CRITICAL sample is
+  recorded and the Sentinel Ops page lights up with the culprit named.
+
+Full setup, deploy, and demo steps: **[`sentinel/README.md`](sentinel/README.md)**.
+
+### Bastion — SSH perimeter guard (detect + enforce)
+
+Watches SSH login activity and **actively firewalls** brute-force sources, then
+auto-releases them.
+
+- **Rule:** > 5 SSH attempts from one IP within 60s ⇒ block that IP for **5
+  minutes** (`BASTION_BLOCK_SECONDS=300`), then auto-unblock. Counts *all*
+  attempts, not just failures.
+- **Daemons:** `collector.py` (Gatekeeper → `ssh_events`) + `bastion_cycle.py`
+  (aggregate → glm-5 → block + expiry sweeper).
+- **Tables (`hermes_auth`):** `ssh_events`, `ssh_blocks`, `ssh_audit_log`,
+  `bastion_sops`.
+- **Enforcement — two layers:**
+  - **Host (always on):** `ipset add bastion_block <ip> timeout 300` on the target
+    + a standing `iptables -I INPUT 1 … --match-set bastion_block src tcp dpt:22
+    -j DROP`, layered over the VM's `ufw`. The ipset is **IPv4-only**.
+  - **VPC edge (optional, off by default):** when `BASTION_VPC_ENABLE=true`, also
+    creates a GCP INGRESS DENY rule for the `/32`; requires a service-account key.
+- **Self-block safety:** all private ranges + loopback are always whitelisted
+  (the monitoring path is never blocked); add your public admin IP via
+  `BASTION_WHITELIST`. If you block your own IP you lose SSH to the target — wait
+  out the TTL or get in via `gcloud compute ssh … --tunnel-through-iap` (IAP's
+  source range is never blocked).
+- **Decision text** shown on the Ops page is glm-5-generated and fed the *live*
+  block duration, so it always states the real TTL.
+- **Demo (IPv4!):**
+  ```bash
+  # from a NON-whitelisted box — must be IPv4 (the ipset is IPv4-only)
+  for i in $(seq 1 10); do ssh -4 -o BatchMode=yes -o ConnectTimeout=6 \
+    -o PreferredAuthentications=publickey "baduser_$i@35.253.182.184" true 2>/dev/null; done
+  sleep 50                                  # detection takes ~5–50s (poll+cycle+LLM)
+  ssh -4 -o ConnectTimeout=15 etech@35.253.182.184 true   # → "Operation timed out" while blocked
+  ```
+
+Full configuration, deploy loop, synthetic-injection testing, VPC setup, and
+troubleshooting: **[`bastion/README.md`](bastion/README.md)**.
+
+### Crew profiles
+
+The agents are backed by Hermes **profiles** under `.hermes/profiles/` that appear
+as the "crew" in the Mission Control roster: Sentinel's `sentinel` + `watchtower`
+(mem0) and `archivist` + `auditor` (Hindsight); Bastion's `gatekeeper`,
+`bastion`, `warden`, and `perimeter-auditor`. Profiles only show in the dashboard
+once registered in the Control Hub's SQLite `agent_profiles` table.
+
+> A **Hermes-native rebuild** of these agents also ships in the repo
+> (`.hermes/scripts/*_probe.py` + `.hermes/skills/space-armour/*`), expressing each
+> agent as a profile + cron routine + skill instead of a standalone daemon. The
+> standalone daemons described above are what currently runs in production; the
+> native routines are build-alongside and not yet registered.
+
+### Mission Control Ops pages
+
+Each agent has a live flow page in the Control Hub (`mc.spacearmour.io`):
+
+- **Sentinel Ops** (`/sentinel`) — node/edge canvas Target → Watchtower →
+  Sentinel → {Archivist, Auditor, Memory}, event-driven pulse animation, fed by
+  `telemetry` + `audit_log`.
+- **Perimeter Ops** (`/bastion`) — the same flow for the SSH guard **plus an
+  Active Blocks table** with live countdowns driven by each block's `expires_at`.
+
+These read Postgres directly via `src/lib/{sentinel,bastion}-repository.ts`; the
+pages poll every ~2.5s and pulse on new events.
 
 ---
 
